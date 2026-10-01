@@ -7,7 +7,7 @@ import { describe, expect, it } from 'vitest'
  * Every component and view must be imported by at least one *.story.vue, so new UI
  * shows up in Histoire.
  */
-const SRC = join(import.meta.dirname, '.')
+const SRC = import.meta.dirname
 
 /** Each needs the real WebSocket bridge, and only wraps a component that has stories. */
 const EXEMPT: Record<string, string> = {
@@ -28,8 +28,7 @@ const ui = all
   .filter((f) => f.startsWith('components/') || f.startsWith('views/'))
 
 describe('stories', () => {
-  it.each(ui)('%s has a story', (file) => {
-    if (file in EXEMPT) return
+  it.each(ui.filter((f) => !(f in EXEMPT)))('%s has a story', (file) => {
     const name = file.split('/').pop()!
     const imported = stories.some((s) => new RegExp(`from '[./a-z]*/${name}'`).test(s))
     expect(imported, `no *.story.vue imports ${name}`).toBe(true)

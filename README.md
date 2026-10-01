@@ -100,6 +100,9 @@ BRIDGE_URL=ws://localhost:8080/ws pnpm test
 
 `src/stories.test.ts` fails if a component or view has no story.
 
+To host the game publicly over `https`, the bridge needs TLS: browsers only let an `https`
+page connect to a `wss://` bridge. Build with `VITE_BRIDGE_URL=wss://your-bridge/ws`.
+
 ## How it works
 
 - Each room is one bridge topic, `who-am-i/<CODE>`. Nothing else on the bridge is touched.
@@ -137,5 +140,15 @@ src/
   views/       Home and Room routes
 ```
 
-Note: a site served over `https` can only connect to a `wss://` bridge, so put TLS in front
-of the bridge if you host it publicly.
+## CI and deployment
+
+`.github/workflows/ci.yml` runs lint, typecheck, tests, the app build and the story build on
+every push and pull request. On `master` it publishes the **Histoire stories** to **GitHub
+Pages**. The game itself is not deployed: it needs a running eventbridge.
+
+One-time setup in the GitHub repository: **Settings → Pages → Build and deployment →
+Source:** choose **GitHub Actions**.
+
+The stories need no server: inside Histoire the bridge module is swapped for one that refuses
+to connect (`histoire.config.ts`), and stories use the in-memory `MemoryHub`. Preview the
+published site with `pnpm story:build && pnpm story:preview`.

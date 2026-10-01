@@ -2,22 +2,26 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    branches: [master]
   pull_request:
+  workflow_dispatch:
 
+# A newer push to a pull request replaces the older run. Runs on master are never cancelled:
+# that would also cancel a Pages deploy halfway.
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   check:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
 
+      # v6 needs pnpm 11+, and this repo pins pnpm 10 (package.json packageManager).
       - uses: pnpm/action-setup@v4
 
-      - uses: actions/setup-node@v5
+      - uses: actions/setup-node@v7
         with:
           node-version: lts/*
           cache: pnpm
@@ -33,18 +37,29 @@ jobs:
       - name: Test
         run: pnpm test
 
+      # Not published: only checks that the game itself still builds.
       - name: Build app
         run: pnpm build
 
       - name: Build stories
         run: pnpm story:build
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-pages-artifact@v5
+        if: github.ref == 'refs/heads/master'
         with:
-          name: app
-          path: dist
-
-      - uses: actions/upload-artifact@v4
-        with:
-          name: stories
           path: .histoire/dist
+
+  # Publishes the Histoire stories (not the game) to GitHub Pages.
+  deploy:
+    if: github.ref == 'refs/heads/master'
+    needs: check
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v5
