@@ -3,6 +3,7 @@ import { effectScope, nextTick } from 'vue'
 import { mount } from '@vue/test-utils'
 import { MemoryHub, type MemoryBridge } from '../bridge/MemoryBridge'
 import RoomScreen from '../components/RoomScreen.vue'
+import { withRouter } from '../testRouter'
 import { roomTopic } from './protocol'
 import { AWAY_AFTER_MS, identityOf, winners } from './reducer'
 import { memoryStorage } from './storage'
@@ -339,7 +340,7 @@ describe('useRoom over the in-memory bridge', () => {
     joinRoom('ABCDE', 'Late', storage)
     const late = open('ABCDE', storage).room
     await flush()
-    const wrapper = mount(RoomScreen, { props: { room: late } })
+    const wrapper = mount(RoomScreen, { ...withRouter(), props: { room: late } })
     expect(wrapper.text()).toContain('This game is over')
     expect(wrapper.text()).toContain('Hana')
   })

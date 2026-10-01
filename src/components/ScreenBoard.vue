@@ -12,13 +12,22 @@ import {
   winners,
 } from '../game/reducer'
 import IdentityCard from './IdentityCard.vue'
+import JoinQr from './JoinQr.vue'
 import ScoreBoard from './ScoreBoard.vue'
 
 /**
  * The shared "main screen" for a TV or a screen share. Everyone can see it, the
  * players whose cards these are included, so it never shows an unsolved identity.
  */
-const props = defineProps<{ state: GameState; joinUrl?: string }>()
+const props = defineProps<{
+  state: GameState
+  /** The room's own link: the QR code opens it straight away. */
+  joinUrl?: string
+  /** Where the game is hosted, for anyone typing it in by hand. */
+  siteUrl?: string
+}>()
+
+const siteLabel = computed(() => props.siteUrl?.replace(/^https?:\/\/|\/$/g, ''))
 
 const s = toRef(props, 'state')
 const players = computed(() => activePlayers(s.value))
@@ -50,9 +59,13 @@ const cards = computed(() =>
         <h1>{{ s.theme }}</h1>
       </div>
       <div class="join">
-        <p class="muted">Join with code</p>
-        <p class="code">{{ s.code }}</p>
-        <p v-if="joinUrl" class="muted small url">{{ joinUrl }}</p>
+        <JoinQr v-if="joinUrl" :url="joinUrl" :size="s.phase === 'lobby' ? 220 : undefined" />
+        <div class="join-text">
+          <p class="muted">{{ joinUrl ? 'Scan to join, or go to' : 'Join with code' }}</p>
+          <p v-if="siteLabel" class="site">{{ siteLabel }}</p>
+          <p v-if="siteLabel" class="muted">and enter the code</p>
+          <p class="code">{{ s.code }}</p>
+        </div>
       </div>
     </header>
 
@@ -147,15 +160,20 @@ const cards = computed(() =>
   font-size: clamp(2rem, 5vw, 3.5rem);
 }
 .join {
+  display: flex;
+  align-items: center;
+  gap: 20px;
   text-align: right;
+}
+.site {
+  font-size: clamp(1.25rem, 3vw, 2rem);
+  font-weight: 700;
+  word-break: break-all;
 }
 .code {
   font-size: clamp(2rem, 5vw, 3.5rem);
   font-weight: 800;
   letter-spacing: 0.15em;
-}
-.url {
-  word-break: break-all;
 }
 .layout {
   display: grid;

@@ -16,15 +16,16 @@ describe('the Big cats example', () => {
   it('every step, and every story fixture, is a state the game would accept', () => {
     const states: GameState[] = [
       ...bigCatsSteps.map((s) => s.state),
-      ...Object.values(fixtures).filter((v): v is GameState => 'phase' in v),
+      ...Object.values(fixtures).filter(
+        (v): v is GameState => typeof v === 'object' && 'phase' in v,
+      ),
     ]
     for (const state of states)
       expect(isStateMessage({ type: 'state', from: state.hostId, state })).toBe(true)
   })
 
   it('uses real Wikipedia pictures for every cat, in the game and the story fixtures', () => {
-    const { noPicture: _none, ...withPictures } = fixtures.entries
-    for (const e of [...Object.values(bigCatsEntries), ...Object.values(withPictures)]) {
+    for (const e of [...Object.values(bigCatsEntries), ...Object.values(fixtures.entries)]) {
       expect(e.imageUrl).toMatch(/^https:\/\/commons\.wikimedia\.org\/wiki\/Special:FilePath\//)
       expect(e.sourceUrl).toMatch(/^https:\/\/en\.wikipedia\.org\/wiki\//)
     }

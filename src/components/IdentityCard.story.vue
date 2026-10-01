@@ -8,10 +8,10 @@ import IdentityCard from './IdentityCard.vue'
     <Variant title="With picture">
       <IdentityCard player-name="Bob" :entry="entries.lion" author-name="Alice" :hidden="false" />
     </Variant>
-    <Variant title="No picture (no link was added)">
+    <Variant title="Caracal">
       <IdentityCard
         player-name="Dana"
-        :entry="entries.noPicture"
+        :entry="entries.caracal"
         author-name="Chen"
         :hidden="false"
       />
@@ -31,13 +31,6 @@ import IdentityCard from './IdentityCard.vue'
     </Variant>
     <Variant title="Away">
       <IdentityCard player-name="Dana" :entry="entries.serval" :hidden="false" away />
-    </Variant>
-    <Variant title="Picture link broken">
-      <IdentityCard
-        player-name="Eve"
-        :entry="{ label: 'Jaguar', imageUrl: 'https://example.invalid/jaguar.jpg' }"
-        :hidden="false"
-      />
     </Variant>
   </Story>
 </template>

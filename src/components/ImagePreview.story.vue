@@ -8,14 +8,11 @@ import ImagePreview from './ImagePreview.vue'
     <Variant title="Image">
       <ImagePreview :src="entries.lion.imageUrl" alt="Lion" />
     </Variant>
+    <Variant title="Caracal">
+      <ImagePreview :src="entries.caracal.imageUrl" alt="Caracal" />
+    </Variant>
     <Variant title="Loading">
       <ImagePreview alt="" loading />
-    </Variant>
-    <Variant title="Empty">
-      <ImagePreview alt="" />
-    </Variant>
-    <Variant title="Failed">
-      <ImagePreview src="https://example.invalid/x.jpg" alt="" />
     </Variant>
   </Story>
 </template>

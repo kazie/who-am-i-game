@@ -1,5 +1,7 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
+import { useRouter } from 'vue-router'
+import { roomLink } from '../game/links'
 import { playerById, roundsLabel } from '../game/reducer'
 import type { Room } from '../game/useRoom'
 import { resolveImageUrl } from '../game/wikipedia'
@@ -22,6 +24,7 @@ const props = withDefaults(
 const emit = defineEmits<{ leave: [] }>()
 
 const room = props.room
+const router = useRouter()
 const state = room.state
 const me = room.me
 const copied = ref(false)
@@ -32,7 +35,7 @@ const relayName = computed(
 
 async function copyLink() {
   try {
-    await navigator.clipboard.writeText(window.location.href)
+    await navigator.clipboard.writeText(roomLink(router, room.code))
     copied.value = true
     setTimeout(() => (copied.value = false), 2000)
   } catch {
@@ -120,7 +123,7 @@ const PHASE_TITLES = {
         </div>
         <a
           class="small"
-          :href="`#/room/${state.code}/screen`"
+          :href="router.resolve({ name: 'screen', params: { code: state.code } }).href"
           target="_blank"
           title="Open on a TV, or share this window in your call"
           >📺 Presentation screen</a

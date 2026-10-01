@@ -1,6 +1,15 @@
 import { mount } from '@vue/test-utils'
 import { describe, expect, it } from 'vitest'
-import { entries, finishedState, overState, playingState, votingState } from '../fixtures'
+import {
+  entries,
+  exampleJoinUrl,
+  exampleSite,
+  finishedState,
+  lobbyState,
+  overState,
+  playingState,
+  votingState,
+} from '../fixtures'
 import ScreenBoard from './ScreenBoard.vue'
 
 // In playingState only Bob (p2) has solved; Bob had the Serval. Alice has the Tiger,
@@ -31,6 +40,15 @@ describe('ScreenBoard', () => {
 
   it('names the winner when the game is over', () => {
     expect(text(overState)).toContain('🏆 Bob')
+  })
+
+  it('shows where to join: the site, the code and a QR code for the room link', () => {
+    const wrapper = mount(ScreenBoard, {
+      props: { state: lobbyState, joinUrl: exampleJoinUrl, siteUrl: exampleSite },
+    })
+    expect(wrapper.text()).toContain('kazie.github.io/who-am-i-game')
+    expect(wrapper.text()).toContain('K7QXP')
+    expect(wrapper.find('svg.qr').attributes('aria-label')).toBe(`QR code for ${exampleJoinUrl}`)
   })
 
   it('shows round, theme and points', () => {

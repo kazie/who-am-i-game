@@ -23,8 +23,6 @@ export const entries = {
   tiger,
   serval,
   caracal,
-  /** For stories about a player who added no picture link. */
-  noPicture: { label: 'Lynx' },
 }
 
 export const lobbyState: GameState = {
@@ -100,3 +98,7 @@ export const overState: GameState = {
   finishVotes: ['p1', 'p2', 'p3'],
   version: 16,
 }
+
+/** Where stories and tests pretend the game is hosted, and the lobby room's join link. */
+export const exampleSite = 'https://kazie.github.io/who-am-i-game/'
+export const exampleJoinUrl = `${exampleSite}#/room/${lobbyState.code}`

@@ -38,8 +38,10 @@ There's no game master: every player has the same buttons, and the group decides
 ### The presentation screen
 
 Every room has a **📺 Presentation screen** link (`#/room/<CODE>/screen`). Open it on a TV,
-or share that window in your video call. It shows the room code, whose turn it is, the live
-vote, the points and, at the end, the winner. It only watches and never joins as a player.
+or share that window in your video call. It shows how to join (a QR code that opens the room
+on a phone, plus the site's address and the room code for typing in by hand), whose turn it
+is, the live vote, the points and, at the end, the winner. It only watches and never joins as
+a player.
 
 Everyone can see the screen, including the person whose card it would show, so it **never
 shows an unsolved card**. Cards appear there once they are guessed, or when the round ends.

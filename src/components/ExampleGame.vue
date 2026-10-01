@@ -65,14 +65,16 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
             {{ p.name }}
           </button>
         </div>
-        <div class="device">
+        <!-- Pictures of a phone and a TV: readable, but clicks stop here, so nothing in the
+             example copies a link, opens a page or sends anything for its made-up room. -->
+        <div class="device" title="Example only" @click.capture.stop.prevent>
           <RoomScreen :key="`${index}-${focus}`" :room="room" />
         </div>
       </section>
 
       <section class="stack">
         <h3>📺 Presentation screen</h3>
-        <div class="device tv">
+        <div class="device tv" title="Example only" @click.capture.stop.prevent>
           <ScreenBoard :state="step.state" />
         </div>
       </section>
@@ -112,6 +114,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
   background: var(--bg);
   /* The panes are narrower than a real screen: keep the inner layouts compact. */
   font-size: 0.9rem;
+  cursor: default;
 }
 .device.tv {
   background: var(--surface-2);

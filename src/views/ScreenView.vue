@@ -6,6 +6,7 @@ import BadRoomCode from '../components/BadRoomCode.vue'
 import RoomStatusBanners from '../components/RoomStatusBanners.vue'
 import ScreenBoard from '../components/ScreenBoard.vue'
 import { isRoomCode, normalizeRoomCode } from '../game/ids'
+import { roomLink, siteUrl } from '../game/links'
 import { playerById } from '../game/reducer'
 import { useScreen } from '../game/useScreen'
 
@@ -18,8 +19,10 @@ const state = computed(() => screen?.state.value ?? null)
 const relayName = computed(
   () => (state.value && playerById(state.value, state.value.hostId)?.name) ?? 'The room creator',
 )
-// What people should open to join: this page's address without the /screen part.
-const joinUrl = computed(() => window.location.href.replace(/\/screen$/, ''))
+// Where the game is hosted, and the room's own link (what the QR code opens). Only for a
+// valid code: the router can't build a link for one that normalised to nothing.
+const site = siteUrl()
+const joinUrl = screen ? roomLink(router, code, site) : undefined
 </script>
 
 <template>
@@ -37,7 +40,7 @@ const joinUrl = computed(() => window.location.href.replace(/\/screen$/, ''))
       :relay-name="relayName"
       :closed="state.closed"
     />
-    <ScreenBoard v-if="state" :state="state" :join-url="joinUrl" />
+    <ScreenBoard v-if="state" :state="state" :join-url="joinUrl" :site-url="site" />
     <div v-else class="panel stack">
       <h2>Presentation screen for room {{ code }}</h2>
       <p class="muted">
