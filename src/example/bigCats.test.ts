@@ -22,8 +22,9 @@ describe('the Big cats example', () => {
       expect(isStateMessage({ type: 'state', from: state.hostId, state })).toBe(true)
   })
 
-  it('uses real Wikipedia pictures for every cat', () => {
-    for (const e of Object.values(bigCatsEntries)) {
+  it('uses real Wikipedia pictures for every cat, in the game and the story fixtures', () => {
+    const { noPicture: _none, ...withPictures } = fixtures.entries
+    for (const e of [...Object.values(bigCatsEntries), ...Object.values(withPictures)]) {
       expect(e.imageUrl).toMatch(/^https:\/\/commons\.wikimedia\.org\/wiki\/Special:FilePath\//)
       expect(e.sourceUrl).toMatch(/^https:\/\/en\.wikipedia\.org\/wiki\//)
     }

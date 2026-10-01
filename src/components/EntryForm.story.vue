@@ -55,7 +55,7 @@ const hugePicture = async () => `https://upload.wikimedia.org/${'x'.repeat(LIMIT
       <EntryForm theme="Big cats" :submitted="entries.serval" />
     </Variant>
     <Variant title="Submitted without picture">
-      <EntryForm theme="Big cats" :submitted="entries.caracal" />
+      <EntryForm theme="Big cats" :submitted="entries.noPicture" />
     </Variant>
   </Story>
 </template>

@@ -15,14 +15,16 @@ const player = (id: string, name: string, extra: Partial<Player> = {}): Player =
   ...extra,
 })
 
-const { lion, tiger, serval } = bigCatsEntries
+const { lion, tiger, serval, caracal } = bigCatsEntries
 
-/** Real Wikipedia pictures from the example game; the caracal deliberately has none. */
+/** The example game's cats, with their real Wikipedia pictures. */
 export const entries = {
   lion,
   tiger,
   serval,
-  caracal: { label: 'Caracal' },
+  caracal,
+  /** For stories about a player who added no picture link. */
+  noPicture: { label: 'Lynx' },
 }
 
 export const lobbyState: GameState = {
