@@ -34,6 +34,8 @@ There's no game master: every player has the same buttons, and the group decides
    - When it becomes your turn, or a guess needs your vote, your phone beeps and vibrates and
      a background tab shows it in its title. **🔔 Alerts** switches the sound and vibration off.
      (Browsers only allow the sound after you have tapped or clicked somewhere on the page.)
+   - **📝 My notes**: jot down what you've learned about your card ("Am I an animal?" ✅).
+     Only you see them, on your own device, and they start over each round.
    - The app counts each player's turns this round. Solved cards show how many it took
      ("Guessed in 4 turns").
 5. **Round over.** The round ends when everyone has guessed theirs, or early if a majority votes
@@ -140,6 +142,10 @@ page connect to a `wss://` bridge. Build with `VITE_BRIDGE_URL=wss://your-bridge
 - Seats live in `sessionStorage`. Reloading a tab keeps your seat, and a reloaded relay
   tab resumes the room, if it is still the relay. The app reminds whoever relays to keep
   their tab open.
+- The relay's tab, every player during a round, and the presentation screen ask the browser
+  to keep the screen on (Screen Wake Lock, on `https` or `localhost`), so a device going to
+  sleep doesn't stall the room. The app has a web app manifest, so phones can install it
+  ("Add to Home Screen").
 - Every client receives every assignment and the UI hides your own. Someone could peek
   in devtools, which is fine for a party game.
 - **Trust:** the eventbridge has no authentication, so the game trusts everyone who can

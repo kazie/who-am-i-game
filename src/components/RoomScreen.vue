@@ -4,12 +4,14 @@ import { useRouter } from 'vue-router'
 import { roomLink } from '../game/links'
 import { nextRelays, playerById, roundsLabel } from '../game/reducer'
 import type { Alerts } from '../game/useAlerts'
+import type { Notes } from '../game/useNotes'
 import type { Room } from '../game/useRoom'
 import { resolveImageUrl } from '../game/wikipedia'
 import EntryForm from './EntryForm.vue'
 import GameBoard from './GameBoard.vue'
 import GameControls from './GameControls.vue'
 import JoinForm from './JoinForm.vue'
+import NotesPanel from './NotesPanel.vue'
 import PlayerList from './PlayerList.vue'
 import RoomStatusBanners from './RoomStatusBanners.vue'
 import ScoreBoard from './ScoreBoard.vue'
@@ -21,8 +23,10 @@ const props = withDefaults(
     resolveImage?: (url: string) => Promise<string | undefined>
     /** Sound, vibration and title alerts; only real rooms have them. */
     alerts?: Alerts
+    /** This player's private notes; only real rooms have them. */
+    notes?: Notes
   }>(),
-  { resolveImage: (url: string) => resolveImageUrl(url), alerts: undefined },
+  { resolveImage: (url: string) => resolveImageUrl(url), alerts: undefined, notes: undefined },
 )
 const emit = defineEmits<{ leave: [] }>()
 
@@ -186,6 +190,7 @@ const PHASE_TITLES = {
               @vote="room.vote"
               @pass="room.pass"
             />
+            <NotesPanel v-if="notes && !me.solved && !me.spectator" :notes="notes" />
             <p v-if="me.solved" class="banner">
               You got it! +{{ state.roundScores[me.id] ?? 0 }} points. Keep answering and voting for
               the others.

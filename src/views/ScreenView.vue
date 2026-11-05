@@ -9,6 +9,7 @@ import { isRoomCode, normalizeRoomCode } from '../game/ids'
 import { roomLink, siteUrl } from '../game/links'
 import { playerById } from '../game/reducer'
 import { useScreen } from '../game/useScreen'
+import { useWakeLock } from '../game/useWakeLock'
 
 const props = defineProps<{ code: string }>()
 const router = useRouter()
@@ -23,6 +24,8 @@ const relayName = computed(
 // valid code: the router can't build a link for one that normalised to nothing.
 const site = siteUrl()
 const joinUrl = screen ? roomLink(router, code, site) : undefined
+// A TV or a shared window shouldn't dim in the middle of the game, or at the winner.
+useWakeLock(() => state.value !== null && !state.value.closed)
 </script>
 
 <template>
