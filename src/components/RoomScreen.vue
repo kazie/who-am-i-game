@@ -2,7 +2,8 @@
 import { computed, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { roomLink } from '../game/links'
-import { playerById, roundsLabel } from '../game/reducer'
+import { nextRelays, playerById, roundsLabel } from '../game/reducer'
+import type { Alerts } from '../game/useAlerts'
 import type { Room } from '../game/useRoom'
 import { resolveImageUrl } from '../game/wikipedia'
 import EntryForm from './EntryForm.vue'
@@ -18,8 +19,10 @@ const props = withDefaults(
   defineProps<{
     room: Room
     resolveImage?: (url: string) => Promise<string | undefined>
+    /** Sound, vibration and title alerts; only real rooms have them. */
+    alerts?: Alerts
   }>(),
-  { resolveImage: (url: string) => resolveImageUrl(url) },
+  { resolveImage: (url: string) => resolveImageUrl(url), alerts: undefined },
 )
 const emit = defineEmits<{ leave: [] }>()
 
@@ -30,8 +33,10 @@ const me = room.me
 const copied = ref(false)
 
 const relayName = computed(
-  () => (state.value && playerById(state.value, state.value.hostId)?.name) ?? 'The creator',
+  () => (state.value && playerById(state.value, state.value.hostId)?.name) ?? 'Someone',
 )
+/** Who takes over relaying if this tab leaves. */
+const successor = computed(() => (state.value ? nextRelays(state.value)[0] : undefined))
 
 async function copyLink() {
   try {
@@ -50,9 +55,10 @@ function leave() {
   emit('leave')
 }
 
-// The creator's tab holds the game: leaving ends it for everyone, so ask first.
+// The relay's tab holds the game. Leaving hands it on, but with nobody around to take over
+// it ends the game for everyone, so ask first.
 function leaveRoom() {
-  if (room.isHost.value && !confirmingLeave.value) {
+  if (room.isRelay.value && !successor.value && !confirmingLeave.value) {
     confirmingLeave.value = true
     return
   }
@@ -76,16 +82,14 @@ const PHASE_TITLES = {
     <h2>Connecting to room {{ room.code }}…</h2>
     <p class="muted">
       <template v-if="room.connection.value !== 'open'">Connecting to the game server…</template>
-      <template v-else
-        >Waiting for the room creator's tab to answer. Check that the room code is right.</template
-      >
+      <template v-else>Waiting for the room to answer. Check that the room code is right.</template>
     </p>
     <button @click="leave">Back</button>
   </div>
 
   <div v-else-if="state.closed" class="panel stack">
     <h2>This room was closed</h2>
-    <p class="muted">{{ relayName }} left, and their tab was keeping the room running.</p>
+    <p class="muted">{{ relayName }} left, and nobody else was around to keep the room running.</p>
     <button @click="leave">Back to start</button>
   </div>
 
@@ -128,17 +132,28 @@ const PHASE_TITLES = {
           title="Open on a TV, or share this window in your call"
           >📺 Presentation screen</a
         >
+        <button
+          v-if="alerts"
+          class="chip"
+          :aria-pressed="!alerts.muted.value"
+          title="A sound and a vibration when it's your turn or your vote"
+          @click="alerts.toggle()"
+        >
+          {{ alerts.muted.value ? '🔕 Alerts off' : '🔔 Alerts on' }}
+        </button>
       </div>
     </header>
 
-    <p v-if="room.isHost.value" class="banner small">
-      📡 You created this room, so your tab keeps it running. Please keep it open until the game is
-      over.
+    <p v-if="room.isRelay.value" class="banner small">
+      📡 Your tab keeps this room running. Please keep it open.
+      <template v-if="successor">If you leave, {{ successor.name }}'s tab takes over.</template>
+      <template v-else>Nobody else could take over right now.</template>
     </p>
     <RoomStatusBanners
       :connection="room.connection.value"
       :host-alive="room.hostAlive.value"
       :relay-name="relayName"
+      :relay-changed="room.relayChanged.value && !room.isRelay.value"
     />
 
     <div class="layout">
@@ -146,7 +161,11 @@ const PHASE_TITLES = {
         <h2>{{ PHASE_TITLES[state.phase] }}</h2>
 
         <p v-if="state.phase === 'lobby'" class="muted">
-          When everyone has joined, anyone can start the writing round.
+          <template v-if="state.pack"
+            >📦 This round uses ready-made cards. When everyone has joined, anyone can hand them
+            out.</template
+          >
+          <template v-else>When everyone has joined, anyone can start the writing round.</template>
         </p>
 
         <EntryForm
@@ -200,7 +219,7 @@ const PHASE_TITLES = {
         </div>
         <template v-if="confirmingLeave">
           <p class="banner warn small">
-            Your tab keeps this room running. Leaving ends the game for everyone.
+            Nobody else is around to keep the room running. Leaving ends the game for everyone.
           </p>
           <div class="row">
             <button class="primary" @click="leaveRoom">Close the room</button>

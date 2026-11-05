@@ -1,4 +1,5 @@
-import { assignEntries, MIN_PLAYERS } from './assign'
+import { assignEntries, MIN_PLAYERS, pickDistinct } from './assign'
+import { packById } from './packs'
 import type { ClientMessage, GameState, Player } from './protocol'
 import { clip, LIMITS } from './protocol'
 
@@ -12,10 +13,14 @@ export function createRoom(opts: {
   hostId: string
   hostName: string
   now: number
+  /** Play with a ready-made pack instead of writing entries; its theme wins. */
+  pack?: string
 }): GameState {
+  const pack = packById(opts.pack)
   return {
     code: opts.code,
-    theme: clip(opts.theme, LIMITS.theme),
+    theme: pack?.theme ?? clip(opts.theme, LIMITS.theme),
+    ...(pack ? { pack: pack.id } : {}),
     hostId: opts.hostId,
     phase: 'lobby',
     players: [newPlayer(opts.hostId, opts.hostName, opts.now, false)],
@@ -40,12 +45,21 @@ export const playerById = (s: GameState, id: string | undefined) =>
 
 export const activePlayers = (s: GameState) => s.players.filter((p) => !p.spectator)
 
+/** With a pack nobody writes: the cards come from the pack. */
 export const canStartWriting = (s: GameState) =>
-  s.phase === 'lobby' && activePlayers(s).length >= MIN_PLAYERS
+  s.phase === 'lobby' && !s.pack && activePlayers(s).length >= MIN_PLAYERS
+
+/** A pack has one card per player, so it caps the number of players. */
+export const packTooSmall = (s: GameState) => {
+  const pack = packById(s.pack)
+  return pack !== undefined && activePlayers(s).length > pack.entries.length
+}
 
 export function canStartPlaying(s: GameState) {
   const players = activePlayers(s)
-  return s.phase === 'writing' && players.length >= MIN_PLAYERS && players.every((p) => p.entry)
+  if (players.length < MIN_PLAYERS) return false
+  if (s.pack) return s.phase === 'lobby' && packById(s.pack) !== undefined && !packTooSmall(s)
+  return s.phase === 'writing' && players.every((p) => p.entry)
 }
 
 /** The entry `playerId` has to guess, and who wrote it. */
@@ -56,6 +70,29 @@ export function identityOf(s: GameState, playerId: string) {
 
 /** `now` is the relay's clock; clients pass the snapshot's `sentAt`. */
 export const isAway = (p: Player, now: number) => now - p.lastSeen > AWAY_AFTER_MS
+
+/**
+ * Who would take over relaying the room, in order: the active players who are around,
+ * in seat order, except the relay itself. Spectators never relay.
+ */
+export const nextRelays = (s: GameState, now: number = s.sentAt) =>
+  activePlayers(s).filter((p) => p.id !== s.hostId && !isAway(p, now))
+
+/**
+ * This tab starts relaying the room, because the relay went quiet. Not a message: it
+ * happens in the tab that takes over, and the higher version makes everyone follow it.
+ */
+export const takeOver = (s: GameState, id: string): GameState => ({
+  ...s,
+  hostId: id,
+  version: s.version + 1,
+})
+
+/** Moves every lastSeen by `offset` ms, e.g. from the old relay's clock to this tab's. */
+export const shiftClock = (s: GameState, offset: number): GameState =>
+  offset === 0
+    ? s
+    : { ...s, players: s.players.map((p) => ({ ...p, lastSeen: p.lastSeen + offset })) }
 
 const majority = (n: number) => Math.floor(n / 2) + 1
 
@@ -123,6 +160,19 @@ export function winners(s: GameState) {
 /** "1 round", "3 rounds". */
 export const roundsLabel = (n: number) => `${n} round${n === 1 ? '' : 's'}`
 
+/** Turns `playerId` has finished this round. A solved player never gets another one. */
+export const turnsOf = (s: GameState, playerId: string) => s.turnsTaken?.[playerId] ?? 0
+
+/** "1 turn", "4 turns". */
+export const turnsLabel = (n: number) => `${n} turn${n === 1 ? '' : 's'}`
+
+/** "1st", "2nd", "3rd", "11th", "22nd". */
+export function ordinal(n: number) {
+  const teen = n % 100 >= 11 && n % 100 <= 13
+  const suffix = teen ? 'th' : (['th', 'st', 'nd', 'rd'][n % 10] ?? 'th')
+  return `${n}${suffix}`
+}
+
 export const winnerNames = (s: GameState) =>
   winners(s)
     .map((p) => p.name)
@@ -147,9 +197,17 @@ function withoutTurn(s: GameState): GameState {
 
 const finish = (s: GameState): GameState => ({ ...withoutTurn(s), phase: 'finished' })
 
-function finishTurn(s: GameState): GameState {
-  const turn = nextTurn(s, s.turn)
-  return turn ? { ...withoutTurn(s), turn } : finish(s)
+/**
+ * Ends the current turn: the only place a turn ends. `counted` is false when an away
+ * player's turn is skipped, since they asked nothing.
+ */
+function finishTurn(s: GameState, counted = true): GameState {
+  const done =
+    counted && s.turn
+      ? { ...s, turnsTaken: { ...s.turnsTaken, [s.turn]: turnsOf(s, s.turn) + 1 } }
+      : s
+  const turn = nextTurn(done, s.turn)
+  return turn ? { ...withoutTurn(done), turn } : finish(done)
 }
 
 /** Adds or removes `id`; the same list back when nothing changes. */
@@ -240,14 +298,21 @@ function apply(s: GameState, a: ClientMessage, { now, rng = Math.random }: Reduc
       // Only asks for a snapshot, which the relay always sends.
       return s
 
-    case 'leave':
+    case 'leave': {
       if (!known) return s
-      // The creator's tab holds the room: when it leaves, the room is gone.
-      if (a.from === s.hostId) return { ...s, closed: true }
+      let next = s
+      // The relay's tab holds the room: it hands it to the next player who is around, or,
+      // with nobody left to take over, the room is gone.
+      if (a.from === s.hostId) {
+        const successor = nextRelays(s, now)[0]
+        if (!successor) return { ...s, closed: true }
+        next = { ...s, hostId: successor.id }
+      }
       // Leaving while cards are out would orphan an assignment; keep them and let them show
       // as away. Before the deal and between rounds there is nothing to orphan.
-      if (s.phase === 'playing' && !known.spectator) return s
-      return { ...s, players: s.players.filter((p) => p.id !== a.from) }
+      if (s.phase === 'playing' && !known.spectator) return next
+      return { ...next, players: next.players.filter((p) => p.id !== a.from) }
+    }
 
     case 'startWriting':
       return player && canStartWriting(s) ? { ...s, phase: 'writing' } : s
@@ -268,12 +333,22 @@ function apply(s: GameState, a: ClientMessage, { now, rng = Math.random }: Reduc
     case 'deal': {
       if (!player || !canStartPlaying(s)) return s
       const ids = activePlayers(s).map((p) => p.id)
+      const pack = packById(s.pack)
+      // A pack's cards become the players' entries, as if each had written one.
+      const cards = pack ? pickDistinct(pack.entries, ids.length, rng) : []
+      const dealt = pack
+        ? {
+            ...s,
+            players: s.players.map((p) => ({ ...p, entry: cards[ids.indexOf(p.id)] ?? p.entry })),
+          }
+        : s
       return {
-        ...s,
+        ...dealt,
         phase: 'playing',
         assignments: assignEntries(ids, rng),
         turn: ids[Math.floor(rng() * ids.length)],
         endVotes: [],
+        turnsTaken: {},
       }
     }
 
@@ -303,7 +378,8 @@ function apply(s: GameState, a: ClientMessage, { now, rng = Math.random }: Reduc
       const ownTurn = a.from === s.turn && !s.guess
       // Anyone may skip the turn of a player who has gone away.
       const skipAway = a.from !== s.turn && current !== undefined && isAway(current, now)
-      return ownTurn || skipAway ? finishTurn(s) : s
+      if (ownTurn) return finishTurn(s)
+      return skipAway ? finishTurn(s, false) : s
     }
 
     case 'endVote': {
@@ -332,16 +408,22 @@ function apply(s: GameState, a: ClientMessage, { now, rng = Math.random }: Reduc
       }
     }
 
-    case 'newRound':
+    case 'newRound': {
       if (s.phase !== 'finished' || !known) return s
+      const pack = packById(a.pack)
+      if (a.pack !== undefined && !pack) return s
+      const { pack: _pack, ...rest } = withoutTurn(s)
       return {
-        ...withoutTurn(s),
-        theme: clip(a.theme, LIMITS.theme) || s.theme,
-        phase: 'writing',
+        ...rest,
+        // A pack round gathers in the lobby (newcomers join as players), then deals.
+        ...(pack
+          ? { pack: pack.id, theme: pack.theme, phase: 'lobby' as const }
+          : { theme: clip(a.theme, LIMITS.theme) || s.theme, phase: 'writing' as const }),
         assignments: {},
         endVotes: [],
         round: s.round + 1,
         roundScores: {},
+        turnsTaken: {},
         finishVotes: [],
         players: s.players.map(({ entry: _entry, ...p }) => ({
           ...p,
@@ -349,5 +431,6 @@ function apply(s: GameState, a: ClientMessage, { now, rng = Math.random }: Reduc
           solved: false,
         })),
       }
+    }
   }
 }

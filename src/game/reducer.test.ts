@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest'
+import { seededRandom } from './random'
 import type { ClientMessage, GameState } from './protocol'
-import { isClientMessage, isStateMessage } from './protocol'
+import { packById } from './packs'
+import { acceptSnapshot, isClientMessage, isStateMessage } from './protocol'
 import {
   AWAY_AFTER_MS,
   canStartPlaying,
@@ -8,7 +10,13 @@ import {
   endTally,
   identityOf,
   isAway,
+  nextRelays,
+  ordinal,
+  shiftClock,
+  takeOver,
+  packTooSmall,
   reduce,
+  turnsOf,
   can,
   finishTally,
   standings,
@@ -253,6 +261,175 @@ describe('turns and guess votes', () => {
   })
 })
 
+describe('turn counter', () => {
+  const guessed = (s: GameState, id: string, correct: boolean, voters: string[]) =>
+    run(
+      s,
+      { type: 'guess', from: id },
+      ...voters.map((v): ClientMessage => ({ type: 'vote', from: v, correct })),
+    )
+
+  it('starts every round at zero', () => {
+    expect(playing().turnsTaken).toEqual({})
+    expect(turnsOf(playing(), 'h')).toBe(0)
+  })
+
+  it('counts a pass, a wrong guess and a right guess as one turn each', () => {
+    let s = run(playing(), { type: 'pass', from: 'h' }) // h asked a question
+    expect(s.turnsTaken).toEqual({ h: 1 })
+    s = guessed(s, 'b', false, ['h', 'c'])
+    expect(s.turnsTaken).toEqual({ h: 1, b: 1 })
+    s = guessed(s, 'c', true, ['h', 'b'])
+    expect(s.turnsTaken).toEqual({ h: 1, b: 1, c: 1 })
+    expect(s.turn).toBe('h')
+  })
+
+  it('a withdrawn guess is still the same turn', () => {
+    const s = run(playing(), { type: 'guess', from: 'h' }, { type: 'withdrawGuess', from: 'h' })
+    expect(turnsOf(s, 'h')).toBe(0)
+  })
+
+  it('a skipped away player did not take a turn', () => {
+    const s = reduce(playing(), { type: 'pass', from: 'b' }, at(now + AWAY_AFTER_MS + 1))
+    expect(s.turn).toBe('b')
+    expect(turnsOf(s, 'h')).toBe(0)
+  })
+
+  it('ending the round early does not count the turn in progress', () => {
+    const s = run(
+      playing(),
+      { type: 'endVote', from: 'b', end: true },
+      { type: 'endVote', from: 'c', end: true },
+    )
+    expect(s.phase).toBe('finished')
+    expect(s.turnsTaken).toEqual({})
+  })
+
+  it('keeps the counts when the round ends, and resets them for the next one', () => {
+    let s = guessed(playing(), 'h', true, ['b', 'c'])
+    s = guessed(s, 'b', true, ['h', 'c'])
+    s = guessed(s, 'c', true, ['h', 'b'])
+    expect(s.phase).toBe('finished')
+    expect(s.turnsTaken).toEqual({ h: 1, b: 1, c: 1 })
+    s = run(s, { type: 'newRound', from: 'h', theme: 'Birds' })
+    expect(s.turnsTaken).toEqual({})
+  })
+
+  it('names turns', () => {
+    expect([1, 2, 3, 4, 11, 12, 13, 21, 22, 23, 101].map(ordinal)).toEqual([
+      '1st',
+      '2nd',
+      '3rd',
+      '4th',
+      '11th',
+      '12th',
+      '13th',
+      '21st',
+      '22nd',
+      '23rd',
+      '101st',
+    ])
+  })
+})
+
+describe('theme packs', () => {
+  const packRoom = (pack = 'big-cats') =>
+    run(
+      createRoom({ code: 'ABCDE', theme: 'ignored', hostId: 'h', hostName: 'Host', now, pack }),
+      { type: 'hello', from: 'b', name: 'Bob' },
+      { type: 'hello', from: 'c', name: 'Chen' },
+    )
+  const labels = new Set(packById('big-cats')!.entries.map((e) => e.label))
+
+  it("takes the pack's theme and skips writing", () => {
+    const s = packRoom()
+    expect(s).toMatchObject({ pack: 'big-cats', theme: 'Big cats', phase: 'lobby' })
+    expect(run(s, { type: 'startWriting', from: 'b' })).toBe(s)
+  })
+
+  it('ignores a pack it does not know', () => {
+    const s = packRoom('nope')
+    expect(s.pack).toBeUndefined()
+    expect(s.theme).toBe('ignored')
+  })
+
+  it('deals different pack cards straight from the lobby, never your own', () => {
+    for (let seed = 1; seed < 20; seed++) {
+      const s = reduce(packRoom(), { type: 'deal', from: 'c' }, { now, rng: seededRandom(seed) })
+      expect(s.phase).toBe('playing')
+      const dealt = s.players.map((p) => p.entry!.label)
+      expect(new Set(dealt).size).toBe(3)
+      for (const label of dealt) expect(labels).toContain(label)
+      for (const p of s.players) expect(s.assignments[p.id]).not.toBe(p.id)
+      expect(identityOf(s, 'h')?.entry.label).toBeDefined()
+    }
+  })
+
+  it('needs at least two players, and no more than there are cards', () => {
+    const alone = createRoom({
+      code: 'ABCDE',
+      theme: '',
+      hostId: 'h',
+      hostName: 'H',
+      now,
+      pack: 'big-cats',
+    })
+    expect(canStartPlaying(alone)).toBe(false)
+    let crowd = alone
+    for (let i = 0; i < labels.size; i++)
+      crowd = run(crowd, { type: 'hello', from: `p${i}`, name: `P${i}` })
+    expect(crowd.players).toHaveLength(labels.size + 1)
+    expect(packTooSmall(crowd)).toBe(true)
+    expect(run(crowd, { type: 'deal', from: 'h' })).toBe(crowd)
+    crowd = run(crowd, { type: 'leave', from: 'p0' })
+    expect(packTooSmall(crowd)).toBe(false)
+    expect(run(crowd, { type: 'deal', from: 'h' }).phase).toBe('playing')
+  })
+
+  const finishedRound = (s: GameState) =>
+    run(s, { type: 'endVote', from: 'b', end: true }, { type: 'endVote', from: 'c', end: true })
+
+  it('a new round can switch to a pack, and goes to the lobby', () => {
+    const s = run(finishedRound(playing()), {
+      type: 'newRound',
+      from: 'b',
+      theme: 'x',
+      pack: 'scientists',
+    })
+    expect(s).toMatchObject({
+      phase: 'lobby',
+      pack: 'scientists',
+      theme: 'Famous scientists',
+      round: 2,
+    })
+    expect(s.players.every((p) => !p.entry && !p.spectator)).toBe(true)
+    expect(run(s, { type: 'deal', from: 'h' }).phase).toBe('playing')
+  })
+
+  it('a new round without a pack goes back to writing', () => {
+    const pack = finishedRound(run(packRoom(), { type: 'deal', from: 'h' }))
+    const s = run(pack, { type: 'newRound', from: 'b', theme: 'Birds' })
+    expect(s).toMatchObject({ phase: 'writing', theme: 'Birds' })
+    expect(s.pack).toBeUndefined()
+  })
+
+  it('a new round with an unknown pack does nothing', () => {
+    const s = finishedRound(playing())
+    expect(run(s, { type: 'newRound', from: 'b', theme: 'x', pack: 'nope' })).toBe(s)
+  })
+
+  it('checks pack ids from the network', () => {
+    const msg = (pack: unknown) =>
+      isClientMessage({ type: 'newRound', from: 'x', theme: 'T', pack })
+    expect(msg('animals')).toBe(true)
+    expect(msg(undefined)).toBe(true)
+    expect(msg(7)).toBe(false)
+    expect(msg('x'.repeat(41))).toBe(false)
+    const state = { ...packRoom(), pack: 7 }
+    expect(isStateMessage({ type: 'state', from: 'h', state })).toBe(false)
+  })
+})
+
 describe('shared controls', () => {
   it('ending early needs a majority vote', () => {
     let s = run(playing(), { type: 'endVote', from: 'h', end: true })
@@ -309,9 +486,10 @@ describe('shared controls', () => {
     expect(s.phase).toBe('lobby')
   })
 
-  it('the creator leaving closes the room', () => {
-    const s = run(withBob(), { type: 'leave', from: 'h' })
-    expect(s.closed).toBe(true)
+  it('the relay leaving with nobody around closes the room', () => {
+    expect(run(room(), { type: 'leave', from: 'h' }).closed).toBe(true)
+    const bobAway = reduce(withBob(), { type: 'leave', from: 'h' }, at(now + AWAY_AFTER_MS + 1))
+    expect(bobAway.closed).toBe(true)
   })
 
   it('anyone can start a new round with fresh entries', () => {
@@ -337,6 +515,80 @@ describe('shared controls', () => {
   })
 })
 
+describe('handing the relay on', () => {
+  it('the relay leaving the lobby hands the room to the next player', () => {
+    const before = run(withBob(), { type: 'hello', from: 'c', name: 'Chen' })
+    const s = run(before, { type: 'leave', from: 'h' })
+    expect(s.hostId).toBe('b')
+    expect(s.closed).toBeUndefined()
+    expect(s.players.map((p) => p.id)).toEqual(['b', 'c'])
+    expect(s.version).toBe(before.version + 1)
+  })
+
+  it('mid-round the relay hands the room on but keeps its seat (its card is dealt)', () => {
+    const s = run(playing(), { type: 'leave', from: 'h' })
+    expect(s.hostId).toBe('b')
+    expect(s.players.map((p) => p.id)).toEqual(['h', 'b', 'c'])
+  })
+
+  it('skips spectators and players who are away, in seat order', () => {
+    let s = run(playing(), { type: 'hello', from: 'z', name: 'Late' }) // a spectator
+    const later = now + AWAY_AFTER_MS + 1
+    s = reduce(s, { type: 'ping', from: 'h' }, at(later))
+    s = reduce(s, { type: 'ping', from: 'c' }, at(later)) // b and z are away
+    expect(nextRelays(s, later).map((p) => p.id)).toEqual(['c'])
+    expect(reduce(s, { type: 'leave', from: 'h' }, at(later)).hostId).toBe('c')
+  })
+
+  it('a takeover names the new relay and bumps the version, nothing else', () => {
+    const s = playing()
+    expect(takeOver(s, 'c')).toEqual({ ...s, hostId: 'c', version: s.version + 1 })
+  })
+
+  it('shifts lastSeen to another clock', () => {
+    const s = shiftClock(playing(), 500)
+    expect(s.players.map((p) => p.lastSeen)).toEqual([now + 500, now + 500, now + 500])
+    expect(shiftClock(s, 0)).toBe(s)
+  })
+
+  it('nobody can remove the relay', () => {
+    const s = reduce(withBob(), { type: 'ping', from: 'b' }, at(now + AWAY_AFTER_MS + 1))
+    expect(run(s, { type: 'kick', from: 'b', playerId: 'h' })).toBe(s)
+  })
+})
+
+describe('acceptSnapshot', () => {
+  const s = playing()
+  const msg = (state: GameState) => ({ type: 'state', from: state.hostId, state })
+  const accepts = (current: GameState | null, next: GameState) =>
+    acceptSnapshot(current, msg(next), 'ABCDE') === next
+
+  it('takes the first snapshot, and newer ones from any seated relay', () => {
+    expect(accepts(null, s)).toBe(true)
+    expect(accepts(s, { ...s, version: s.version + 1 })).toBe(true)
+    expect(accepts(s, takeOver(s, 'c'))).toBe(true)
+  })
+
+  it('ignores older snapshots, e.g. from a relay that came back', () => {
+    const moved = takeOver(s, 'c')
+    expect(accepts(moved, s)).toBe(false)
+    expect(accepts(moved, { ...s, version: s.version + 1 })).toBe(false) // a tie: lower id wins
+  })
+
+  it('settles two relays at the same version by the lower id, both ways', () => {
+    const b = { ...s, hostId: 'b' }
+    const c = { ...s, hostId: 'c' }
+    expect(accepts(c, b)).toBe(true)
+    expect(accepts(b, c)).toBe(false)
+    expect(accepts(b, { ...b, theme: 'Heartbeat' })).toBe(true) // same relay: a heartbeat
+  })
+
+  it('ignores relays that are not players, and other rooms', () => {
+    expect(accepts(s, { ...s, hostId: 'stranger', version: 99 })).toBe(false)
+    expect(accepts(null, { ...s, code: 'ZZZZZ' })).toBe(false)
+  })
+})
+
 describe('isClientMessage', () => {
   it('rejects unknown actions and malformed input from the network', () => {
     expect(isClientMessage({ type: 'startPlaying', from: 'x', assignments: {} })).toBe(false)
@@ -358,6 +610,10 @@ describe('isClientMessage', () => {
     expect(bad({ turn: 7 })).toBe(false)
     expect(bad({ endVotes: [1] })).toBe(false)
     expect(bad({ players: [{ id: 'h', name: 'H' }] })).toBe(false)
+    expect(bad({ turnsTaken: { h: 'two' } })).toBe(false)
+    // Snapshots from before turns were counted have no turnsTaken at all.
+    const { turnsTaken: _turns, ...older } = good.state
+    expect(isStateMessage({ ...good, state: older })).toBe(true)
   })
 
   it('only accepts http(s) links in entries', () => {

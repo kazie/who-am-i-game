@@ -1,10 +1,19 @@
 <script setup lang="ts">
 import { logEvent } from 'histoire/client'
-import { finishedState, lobbyState, playingState, writingState } from '../fixtures'
+import {
+  crowdedPackLobbyState,
+  finishedState,
+  lobbyState,
+  packLobbyState,
+  playingState,
+  writingState,
+} from '../fixtures'
 import GameControls from './GameControls.vue'
 
 const states = {
   lobby: lobbyState,
+  'lobby, ready-made pack': packLobbyState,
+  'lobby, too many players for the pack': crowdedPackLobbyState,
   'writing (waiting for Bob)': writingState,
   playing: playingState,
   'playing (Alice voted to end)': { ...playingState, endVotes: ['p1'] },
@@ -21,7 +30,7 @@ const states = {
         @start-writing="logEvent('startWriting', {})"
         @deal="logEvent('deal', {})"
         @vote-to-end="logEvent('voteToEnd', { end: $event })"
-        @new-round="logEvent('newRound', { theme: $event })"
+        @new-round="(theme, pack) => logEvent('newRound', { theme, pack })"
       />
     </Variant>
   </Story>

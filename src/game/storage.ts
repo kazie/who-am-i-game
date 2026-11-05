@@ -13,16 +13,19 @@ export function memoryStorage(): KeyValueStorage {
   }
 }
 
-// Shared so every caller in this tab sees the same data when sessionStorage is unavailable.
-let fallback: KeyValueStorage | undefined
+type StorageArea = 'sessionStorage' | 'localStorage'
+
+// Shared so every caller in this tab sees the same data when the storage is unavailable.
+const fallbacks: Partial<Record<StorageArea, KeyValueStorage>> = {}
 
 /**
- * sessionStorage is per tab and survives a reload: a refresh rejoins the same seat,
- * while several tabs in one browser are separate players.
+ * sessionStorage (the default) is per tab and survives a reload: a refresh rejoins the same
+ * seat, while several tabs in one browser are separate players. localStorage is for settings
+ * that belong to the whole browser, like muting alerts.
  */
-export function browserStorage(): KeyValueStorage {
+export function browserStorage(area: StorageArea = 'sessionStorage'): KeyValueStorage {
   try {
-    const s = window.sessionStorage
+    const s = window[area]
     const probe = '__who-am-i__'
     s.setItem(probe, probe)
     s.removeItem(probe)
@@ -42,8 +45,7 @@ export function browserStorage(): KeyValueStorage {
       removeItem: safe((k: string) => s.removeItem(k), undefined),
     }
   } catch {
-    fallback ??= memoryStorage()
-    return fallback
+    return (fallbacks[area] ??= memoryStorage())
   }
 }
 

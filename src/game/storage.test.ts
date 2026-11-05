@@ -11,4 +11,12 @@ describe('browserStorage', () => {
     browserStorage().setItem('k', 'v')
     expect(browserStorage().getItem('k')).toBe('v')
   })
+
+  it('keeps the two storage areas apart', () => {
+    browserStorage('localStorage').setItem('area', 'local')
+    browserStorage().setItem('area', 'session')
+    expect(browserStorage('localStorage').getItem('area')).toBe('local')
+    expect(window.localStorage.getItem('area')).toBe('local')
+    expect(window.sessionStorage.getItem('area')).toBe('session')
+  })
 })

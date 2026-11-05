@@ -6,7 +6,7 @@ import { roomTopic } from './protocol'
 
 /**
  * A presentation screen (TV, shared window): follows a room's snapshots without ever
- * joining it. It has no seat, so it never shows up among the players.
+ * joining it. It has no seat, so it never shows up among the players and never relays.
  */
 export function useScreen(code: string, deps: { bridge: Bridge; now?: () => number }) {
   // Only identifies this screen's requests; nothing is stored.
@@ -23,7 +23,13 @@ export function useScreen(code: string, deps: { bridge: Bridge; now?: () => numb
   })
   room.start()
   watch()
-  return { code, state: room.state, connection: room.connection, hostAlive: room.hostAlive }
+  return {
+    code,
+    state: room.state,
+    connection: room.connection,
+    hostAlive: room.hostAlive,
+    relayChanged: room.relayChanged,
+  }
 }
 
 export type Screen = ReturnType<typeof useScreen>

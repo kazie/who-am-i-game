@@ -3,6 +3,7 @@ import {
   finishedState,
   lobbyState,
   overState,
+  packLobbyState,
   playingState,
   votingState,
   writingState,
@@ -13,6 +14,7 @@ import ScreenBoard from './ScreenBoard.vue'
 
 const variants = [
   ['Lobby', lobbyState],
+  ['Lobby, ready-made pack', packLobbyState],
   ['Writing', writingState],
   ["Chen's turn", playingState],
   ["Voting on Chen's guess", votingState],

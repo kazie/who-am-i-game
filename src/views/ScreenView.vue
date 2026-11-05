@@ -17,7 +17,7 @@ const code = normalizeRoomCode(props.code)
 const screen = isRoomCode(code) ? useScreen(code, { bridge: getBridge() }) : null
 const state = computed(() => screen?.state.value ?? null)
 const relayName = computed(
-  () => (state.value && playerById(state.value, state.value.hostId)?.name) ?? 'The room creator',
+  () => (state.value && playerById(state.value, state.value.hostId)?.name) ?? 'Someone',
 )
 // Where the game is hosted, and the room's own link (what the QR code opens). Only for a
 // valid code: the router can't build a link for one that normalised to nothing.
@@ -39,6 +39,7 @@ const joinUrl = screen ? roomLink(router, code, site) : undefined
       :host-alive="screen.hostAlive.value"
       :relay-name="relayName"
       :closed="state.closed"
+      :relay-changed="screen.relayChanged.value"
     />
     <ScreenBoard v-if="state" :state="state" :join-url="joinUrl" :site-url="site" />
     <div v-else class="panel stack">
@@ -46,7 +47,7 @@ const joinUrl = screen ? roomLink(router, code, site) : undefined
       <p class="muted">
         {{
           screen.connection.value === 'open'
-            ? "Waiting for the room creator's tab to answer…"
+            ? 'Waiting for the room to answer…'
             : 'Connecting to the game server…'
         }}
       </p>

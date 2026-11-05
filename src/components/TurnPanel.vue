@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import type { GameState } from '../game/protocol'
-import { can, identityOf, playerById, tally } from '../game/reducer'
+import { can, identityOf, ordinal, playerById, tally, turnsOf } from '../game/reducer'
 
 const props = defineProps<{ state: GameState; meId?: string }>()
 const emit = defineEmits<{
@@ -14,6 +14,12 @@ const emit = defineEmits<{
 const from = computed(() => props.meId ?? '')
 const turnPlayer = computed(() => playerById(props.state, props.state.turn))
 const myTurn = computed(() => props.state.turn === from.value)
+/** "3rd turn this round": the one being played now. */
+const turnCount = computed(() =>
+  turnPlayer.value
+    ? `${ordinal(turnsOf(props.state, turnPlayer.value.id) + 1)} turn this round`
+    : '',
+)
 const guess = computed(() => props.state.guess)
 const guesser = computed(() => playerById(props.state, guess.value?.playerId))
 const guessing = computed(() => guess.value?.playerId === from.value)
@@ -60,6 +66,7 @@ const canSkip = computed(
 
     <template v-else-if="myTurn">
       <h3>Your turn 🎤</h3>
+      <p class="muted small count">{{ turnCount }}</p>
       <p class="muted small">
         Ask one yes/no question out loud. Think you know who you are? Make your guess and the others
         vote.
@@ -72,6 +79,7 @@ const canSkip = computed(
 
     <template v-else>
       <h3>{{ turnPlayer.name }}'s turn 🎤</h3>
+      <p class="muted small count">{{ turnCount }}</p>
       <p class="muted small">Answer their yes/no questions out loud.</p>
       <button v-if="canSkip" @click="emit('pass')">
         {{ turnPlayer.name }} is away: skip their turn
@@ -84,6 +92,9 @@ const canSkip = computed(
 .turn.mine {
   border-color: var(--accent);
   border-width: 2px;
+}
+.count {
+  margin-top: -8px;
 }
 .answer {
   margin: 0;

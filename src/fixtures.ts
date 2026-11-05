@@ -1,4 +1,5 @@
-import { AWAY_AFTER_MS } from './game/reducer'
+import { AWAY_AFTER_MS, reduce } from './game/reducer'
+import { seededRandom } from './game/random'
 import { bigCatsEntries } from './example/entries'
 import type { GameState, Player } from './game/protocol'
 
@@ -70,6 +71,8 @@ export const playingState: GameState = {
   round: 2,
   scores: { p1: 3, p2: 5, p3: 1, p4: 0 },
   roundScores: { p2: 3 },
+  // Bob guessed right on turn 2; Chen is now on turn 2.
+  turnsTaken: { p1: 2, p2: 2, p3: 1, p4: 1 },
   version: 12,
 }
 
@@ -87,6 +90,7 @@ export const finishedState: GameState = {
   players: playingState.players.map((p) => (p.id === 'p3' ? { ...p, solved: true } : p)),
   scores: { p1: 3, p2: 5, p3: 3, p4: 0 },
   roundScores: { p2: 3, p3: 2 },
+  turnsTaken: { p1: 2, p2: 2, p3: 2, p4: 1 },
   finishVotes: ['p1'],
   version: 15,
 }
@@ -98,6 +102,22 @@ export const overState: GameState = {
   finishVotes: ['p1', 'p2', 'p3'],
   version: 16,
 }
+
+/** A room playing the Big cats pack: nobody writes, the cards are dealt from the lobby. */
+export const packLobbyState: GameState = { ...lobbyState, pack: 'big-cats' }
+
+/** More players than the Big cats pack has cards. */
+export const crowdedPackLobbyState: GameState = {
+  ...packLobbyState,
+  players: Array.from({ length: 13 }, (_, i) => player(`p${i + 1}`, `Player ${i + 1}`)),
+}
+
+/** The pack round, just dealt by the real rules. */
+export const packPlayingState: GameState = reduce(
+  packLobbyState,
+  { type: 'deal', from: 'p1' },
+  { now: T0, rng: seededRandom(7) },
+)
 
 /** Where stories and tests pretend the game is hosted, and the lobby room's join link. */
 export const exampleSite = 'https://kazie.github.io/who-am-i-game/'

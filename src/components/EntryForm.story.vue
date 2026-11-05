@@ -8,6 +8,8 @@ const onSubmit = (entry: Entry) => logEvent('submit', entry)
 // Offline stand-ins for the Wikipedia lookup.
 const fakeResolve = async (url: string) =>
   url.includes('wikipedia.org/wiki/') && !url.includes('#/media/') ? entries.lion.imageUrl : url
+// A plain binding: vue-tsc 3.3.14 reports `entries.serval` inline in the template as a ref.
+const submitted = entries.serval
 </script>
 
 <template>
@@ -28,7 +30,7 @@ const fakeResolve = async (url: string) =>
       />
     </Variant>
     <Variant title="Submitted">
-      <EntryForm theme="Big cats" :submitted="entries.serval" />
+      <EntryForm theme="Big cats" :submitted="submitted" />
     </Variant>
   </Story>
 </template>

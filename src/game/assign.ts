@@ -1,5 +1,16 @@
 export const MIN_PLAYERS = 2
 
+/** `n` different items in random order (a partial Fisher–Yates shuffle). */
+export function pickDistinct<T>(items: readonly T[], n: number, rng: () => number = Math.random) {
+  if (n > items.length) throw new Error(`Only ${items.length} to pick from`)
+  const pool = [...items]
+  for (let i = 0; i < n; i++) {
+    const j = i + Math.floor(rng() * (pool.length - i))
+    ;[pool[i], pool[j]] = [pool[j]!, pool[i]!]
+  }
+  return pool.slice(0, n)
+}
+
 /**
  * Random assignment where nobody gets their own entry.
  * Sattolo's algorithm yields a uniformly random single cycle, which is always a derangement.

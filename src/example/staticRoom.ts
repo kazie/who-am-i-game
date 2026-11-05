@@ -9,9 +9,11 @@ export interface StaticRoomOptions {
   code?: string
   /** Defaults to the matching player's seat, or no seat (the join form) when meId is unset. */
   identity?: Identity | null
-  isHost?: boolean
+  /** Defaults to whether this seat is the state's relay. */
+  isRelay?: boolean
   kicked?: boolean
   hostAlive?: boolean
+  relayChanged?: boolean
   connection?: ConnectionStatus
   /** Called instead of sending anything, e.g. Histoire's logEvent. */
   onAction?: (name: string, args: unknown[]) => void
@@ -31,7 +33,7 @@ export function staticRoom(
     opts.identity !== undefined
       ? opts.identity
       : meId
-        ? { playerId: meId, name: player?.name ?? 'You', host: state?.hostId === meId }
+        ? { playerId: meId, name: player?.name ?? 'You' }
         : null
   const log =
     (name: string) =>
@@ -58,8 +60,11 @@ export function staticRoom(
     identity: ref(identity),
     me: computed(() => player),
     kicked: computed(() => opts.kicked ?? false),
-    isHost: computed(() => opts.isHost ?? identity?.host ?? false),
+    isRelay: computed(
+      () => opts.isRelay ?? (identity !== null && state?.hostId === identity.playerId),
+    ),
     hostAlive: computed(() => opts.hostAlive ?? true),
+    relayChanged: computed(() => opts.relayChanged ?? false),
     connection: ref(opts.connection ?? 'open'),
     ...actions,
   }

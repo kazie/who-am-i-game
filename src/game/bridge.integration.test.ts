@@ -89,4 +89,35 @@ describe.skipIf(!url)('real eventbridge', () => {
     await until('the screen to show the end', () => screen.state.value?.phase === 'over')
     expect(screen.state.value!.players).toHaveLength(3) // the screen never joined
   })
+
+  it('the relay leaving hands the room to the next player', async () => {
+    const code = randomRoomCode()
+    const hostStorage = memoryStorage()
+    hostRoom({ code, theme: 'Animals', name: 'Hana' }, { storage: hostStorage })
+    const host = seat(code, hostStorage)
+    const bob = seat(code)
+    const chen = seat(code)
+    bob.join('Bob')
+    chen.join('Chen')
+    const screenBridge = new BridgeClient(url!)
+    clients.push(screenBridge)
+    const screen = scope.run(() => useScreen(code, { bridge: screenBridge }))!
+    await until('everyone in the lobby', () =>
+      [host, bob, chen].every((r) => r.state.value?.players.length === 3),
+    )
+
+    // Seats follow the order the hellos arrived in, which the bridge decides.
+    const nextId = host.state.value!.players[1]!.id
+    const next = [bob, chen].find((r) => r.me.value?.id === nextId)!
+    const other = next === bob ? chen : bob
+
+    host.leave()
+    await until('the next player to relay', () => next.isRelay.value)
+    await until('the screen to follow', () => screen.state.value?.hostId === nextId)
+    other.startWriting()
+    await until('writing under the new relay', () =>
+      [bob, chen].every((r) => r.state.value?.phase === 'writing'),
+    )
+    expect(screen.relayChanged.value).toBe(true)
+  })
 })

@@ -27,6 +27,17 @@ import IdentityCard from './IdentityCard.vue'
         :hidden="false"
         is-me
         solved
+        :turns="4"
+      />
+    </Variant>
+    <Variant title="Solved on the first turn">
+      <IdentityCard
+        player-name="Bob"
+        :entry="entries.lion"
+        author-name="Alice"
+        :hidden="false"
+        solved
+        :turns="1"
       />
     </Variant>
     <Variant title="Away">

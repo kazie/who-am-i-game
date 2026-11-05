@@ -8,9 +8,11 @@ you. Ask yes/no questions out loud (in the room or on a video call) until you wo
 There's no game master: every player has the same buttons, and the group decides together.
 
 1. **Create a room.** Someone picks a theme ("Famous scientists", "Animals", …) and shares the
-   5-letter room code or link.
+   5-letter room code or link. Short on ideas, or time? Pick a **📦 ready-made pack** instead
+   (Big cats, Animals, Famous scientists, Landmarks, Famous paintings): everyone gets a random
+   card from it, with a Wikipedia picture, and nobody has to write.
 2. **Lobby.** Players join with the code and their name. When everyone is in, anyone starts
-   the writing round.
+   the writing round (with a pack, anyone hands out the cards and the game skips to step 4).
 3. **Writing.** Each player writes **one** entry for the theme. Adding a picture link is
    optional but strongly encouraged. Any of these work:
    - a Wikipedia article, e.g. `https://en.wikipedia.org/wiki/Marie_Curie` (its main picture is used)
@@ -29,11 +31,16 @@ There's no game master: every player has the same buttons, and the group decides
      guess of the round earns **N-1**, the next N-2, and so on down to 0. A wrong guess just
      passes the turn, and you keep playing.
    - If the active player has gone away, anyone can skip their turn.
+   - When it becomes your turn, or a guess needs your vote, your phone beeps and vibrates and
+     a background tab shows it in its title. **🔔 Alerts** switches the sound and vibration off.
+     (Browsers only allow the sound after you have tapped or clicked somewhere on the page.)
+   - The app counts each player's turns this round. Solved cards show how many it took
+     ("Guessed in 4 turns").
 5. **Round over.** The round ends when everyone has guessed theirs, or early if a majority votes
    to end it (anyone still guessing gets 0). All cards are revealed.
-6. **Again, or finish.** Anyone can start the next round with a new theme. Points add up over
-   rounds. When the group has had enough, a majority votes to finish, and the player with the
-   most points wins 🏆 (ties share the win).
+6. **Again, or finish.** Anyone can start the next round with a new theme or a pack. Points add
+   up over rounds. When the group has had enough, a majority votes to finish, and the player
+   with the most points wins 🏆 (ties share the win).
 
 ### The presentation screen
 
@@ -64,7 +71,8 @@ as its message relay:
 ./gradlew runDebugExecutableHost            # ws://localhost:8080/ws
 ```
 
-Then, in this repo:
+Then, in this repo. With [Nix](https://nixos.org), `nix develop` (or `direnv allow`, thanks to
+`.envrc`) gives you Node and pnpm. Otherwise install Node 22+ and pnpm yourself.
 
 ```sh
 pnpm install
@@ -109,8 +117,9 @@ page connect to a `wss://` bridge. Build with `VITE_BRIDGE_URL=wss://your-bridge
 
 - Each room is one bridge topic, `who-am-i/<CODE>`. Nothing else on the bridge is touched.
 - The bridge only relays live messages: it has no history, presence or auth. Because of
-  that, **the tab that created the room is the relay** and holds the state. It has no extra
-  say in the game: it applies the same rules to its own clicks as to everyone else's.
+  that, **one player's tab is the relay** and holds the state: the creator's, to begin with.
+  It has no extra say in the game: it applies the same rules to its own clicks as to
+  everyone else's.
   Players send small messages (`hello`, `submit`, `deal`, `guess`, `vote`, `pass`,
   `endVote`, …). The relay runs them through a pure reducer
   (`src/game/reducer.ts`) and broadcasts a full state snapshot after every change and every
@@ -120,24 +129,34 @@ page connect to a `wss://` bridge. Build with `VITE_BRIDGE_URL=wss://your-bridge
   warning when the relay tab goes quiet. Anyone can remove a player who is away (in the
   lobby or while writing) or watching. Removed players stay out unless they join again as a
   new player.
+- **The relay moves on when its tab does.** If the relay player leaves, their tab hands the
+  room to the next player who is around (in seat order; spectators never relay). If the relay
+  tab goes quiet instead (crashed, closed, laptop asleep), the first player in line takes
+  over after about 75–85 s, the next one 20 s later if that didn't happen, and so on. Every
+  change of relay bumps the snapshot version, and every tab, the relay's included, follows
+  the highest version (ties go to the lower player id). So a relay tab that comes back
+  late sees the newer snapshots and steps down instead of rolling the room back. The room
+  only ends when the relay leaves and nobody else is around.
 - Seats live in `sessionStorage`. Reloading a tab keeps your seat, and a reloaded relay
-  tab resumes the room. If the creator closes their tab for good, the room ends. The app
-  reminds them to keep it open.
+  tab resumes the room, if it is still the relay. The app reminds whoever relays to keep
+  their tab open.
 - Every client receives every assignment and the UI hides your own. Someone could peek
   in devtools, which is fine for a party game.
 - **Trust:** the eventbridge has no authentication, so the game trusts everyone who can
   publish on the bridge. Incoming messages are checked for shape and safe links, so a broken
   or malicious message can't crash the page or plant a `javascript:` link. But anyone on the
-  bridge can impersonate the room creator's tab: by publishing fake snapshots they can take
-  over or freeze a room until everyone reloads. Run the bridge where only your players can
-  reach it. Fixing this properly needs publish rights in the bridge (only the creator may
-  publish snapshots to its room) or signed snapshots.
+  bridge can impersonate the relay: a fake snapshot with a higher version that names any
+  player as relay takes over or freezes a room. Run the bridge where only your players can
+  reach it. Fixing this properly needs publish rights in the bridge (only the relay may
+  publish snapshots to its room) or signed snapshots. Right after a takeover, two tabs may
+  relay for a moment; they settle within a heartbeat, and a click that reached only the
+  losing one is lost.
 - Anyone can join while entries are still being written. Anyone who joins after the cards are dealt watches as a spectator until the next round.
 
 ```
 src/
   bridge/      BridgeClient (WebSocket, reconnect) and MemoryBridge (tests/stories)
-  game/        protocol types, reducer, assignment, Wikipedia lookup, useRoom composable
+  game/        protocol types, reducer, assignment, packs, Wikipedia lookup, useRoom, alerts
   components/  UI components plus *.story.vue for Histoire
   views/       Home and Room routes
 ```
