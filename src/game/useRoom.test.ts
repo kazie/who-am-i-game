@@ -5,13 +5,15 @@ import { MemoryHub, type MemoryBridge } from '../bridge/MemoryBridge'
 import RoomScreen from '../components/RoomScreen.vue'
 import { withRouter } from '../testRouter'
 import { roomTopic } from './protocol'
-import { AWAY_AFTER_MS, identityOf, winners } from './reducer'
+import type { GameState } from './protocol'
+import { AWAY_AFTER_MS, identityOf, isAway, winners } from './reducer'
 import { memoryStorage } from './storage'
 import {
   HEARTBEAT_MS,
   hostRoom,
   joinRoom,
   storageKeys,
+  TAKEOVER_STAGGER_MS,
   useRoom,
   type Room,
   type RoomDeps,
@@ -79,13 +81,12 @@ describe('useRoom over the in-memory bridge', () => {
   async function threePlayers() {
     const hostStorage = memoryStorage()
     hostRoom({ code: 'ABCDE', theme: 'Animals', name: 'Hana' }, { storage: hostStorage })
-    const host = open('ABCDE', hostStorage).room
-    const bob = open('ABCDE').room
-    const chen = open('ABCDE').room
+    const tabs = { host: open('ABCDE', hostStorage), bob: open('ABCDE'), chen: open('ABCDE') }
+    const { host, bob, chen } = { host: tabs.host.room, bob: tabs.bob.room, chen: tabs.chen.room }
     bob.join('Bob')
     chen.join('Chen')
     await flush()
-    return { host, bob, chen, hostStorage }
+    return { host, bob, chen, hostStorage, tabs }
   }
 
   const names = (r: Room) => r.state.value?.players.map((p) => p.name)
@@ -95,7 +96,7 @@ describe('useRoom over the in-memory bridge', () => {
     expect(names(host)).toEqual(['Hana', 'Bob', 'Chen'])
     expect(names(bob)).toEqual(['Hana', 'Bob', 'Chen'])
     expect(chen.me.value?.name).toBe('Chen')
-    expect(bob.isHost.value).toBe(false)
+    expect(bob.isRelay.value).toBe(false)
   })
 
   it('plays a full round where nobody sees their own card and the others vote', async () => {
@@ -148,25 +149,26 @@ describe('useRoom over the in-memory bridge', () => {
     const { bob, hostStorage } = await threePlayers()
     scopes[0]!.stop()
     const host = open('ABCDE', hostStorage).room
-    expect(host.isHost.value).toBe(true)
+    expect(host.isRelay.value).toBe(true)
     expect(names(host)).toEqual(['Hana', 'Bob', 'Chen'])
     host.startWriting()
     await flush()
     expect(bob.state.value?.phase).toBe('writing')
   })
 
-  it('a host seat without saved state falls back to joining as a player', async () => {
-    const { host } = await threePlayers()
-    const storage = memoryStorage()
-    hostRoom({ code: 'ABCDE', theme: 'x', name: 'Ghost' }, { storage })
-    storage.removeItem(storageKeys.state('ABCDE'))
-    const lost = open('ABCDE', storage).room
-    expect(lost.identity.value).toBeNull()
-    lost.join('Ghost')
+  it('a relay that lost its saved state follows the room as a player, keeping its seat', async () => {
+    const { bob, hostStorage } = await threePlayers()
+    scopes[0]!.stop()
+    hostStorage.removeItem(storageKeys.state('ABCDE'))
+    const lost = open('ABCDE', hostStorage).room
+    expect(lost.isRelay.value).toBe(false)
+    expect(lost.state.value).toBeNull()
+    // Nobody relays now, so after a while Bob takes over, and Hana is still in the room.
+    vi.advanceTimersByTime(AWAY_AFTER_MS + HEARTBEAT_MS)
     await flush()
-    expect(lost.isHost.value).toBe(false)
-    expect(names(host)).toContain('Ghost')
-    expect(lost.me.value?.name).toBe('Ghost')
+    expect(bob.isRelay.value).toBe(true)
+    expect(lost.me.value?.name).toBe('Hana')
+    expect(lost.isRelay.value).toBe(false)
   })
 
   it('a removed player stays out after a reload, until they join with a new seat', async () => {
@@ -211,13 +213,34 @@ describe('useRoom over the in-memory bridge', () => {
     expect(dana.me.value?.name).toBe('Dana')
   })
 
-  it('the creator leaving closes the room for everyone', async () => {
-    const { host, bob, hostStorage } = await threePlayers()
+  it('the relay leaving hands the room to the next player', async () => {
+    const { host, bob, chen, hostStorage, tabs } = await threePlayers()
+    const bobStorage = tabs.bob.storage
     host.leave()
     await flush()
-    expect(bob.state.value?.closed).toBe(true)
+    expect(bob.isRelay.value).toBe(true)
+    expect(chen.state.value?.hostId).toBe(bob.me.value?.id)
+    expect(names(chen)).toEqual(['Bob', 'Chen'])
     expect(hostStorage.getItem(storageKeys.state('ABCDE'))).toBeNull()
+    expect(bobStorage.getItem(storageKeys.state('ABCDE'))).not.toBeNull()
     expect(host.identity.value).toBeNull()
+    // The game goes on under Bob.
+    chen.startWriting()
+    await flush()
+    expect(bob.state.value?.phase).toBe('writing')
+    expect(chen.state.value?.phase).toBe('writing')
+    expect(chen.relayChanged.value).toBe(true)
+  })
+
+  it('the relay leaving with nobody else around closes the room', async () => {
+    const hostStorage = memoryStorage()
+    hostRoom({ code: 'ABCDE', theme: 'Animals', name: 'Hana' }, { storage: hostStorage })
+    const host = open('ABCDE', hostStorage).room
+    const screen = inScope(() => useScreen('ABCDE', { bridge: hub.createClient() }))
+    await flush()
+    host.leave()
+    await flush()
+    expect(screen.state.value?.closed).toBe(true)
   })
 
   it('sends one snapshot per heartbeat, however many players ping', async () => {
@@ -261,7 +284,7 @@ describe('useRoom over the in-memory bridge', () => {
     expect(publish).not.toHaveBeenCalled() // stays offline until the check answers
     answer(false)
     await flush()
-    expect(dup.isHost.value).toBe(false)
+    expect(dup.isRelay.value).toBe(false)
     expect(dup.identity.value).toBeNull()
     expect(copy.getItem(storageKeys.state('ABCDE'))).toBeNull()
     expect(names(host)).toEqual(['Hana', 'Bob', 'Chen'])
@@ -358,13 +381,17 @@ describe('useRoom over the in-memory bridge', () => {
     expect(room.connection.value).toBe('open')
   })
 
-  it('notices when the host goes quiet', async () => {
-    const { bob } = await threePlayers()
+  it('notices when the relay goes quiet', async () => {
+    const { bob, chen, tabs } = await threePlayers()
     expect(bob.hostAlive.value).toBe(true)
-    scopes[0]!.stop()
+    tabs.host.scope.stop()
+    // Offline tabs never take over; on their own they can only tell the relay is gone.
+    tabs.bob.bridge.status = 'connecting'
+    tabs.chen.bridge.status = 'connecting'
     vi.advanceTimersByTime(AWAY_AFTER_MS + HEARTBEAT_MS)
     await flush()
     expect(bob.hostAlive.value).toBe(false)
+    expect(bob.isRelay.value || chen.isRelay.value).toBe(false)
   })
 
   it('a reloaded relay treats everyone as just seen', async () => {
@@ -416,5 +443,150 @@ describe('useRoom over the in-memory bridge', () => {
     })
     await flush()
     expect(bob.state.value?.theme).toBe('Animals')
+  })
+
+  it('ignores an older snapshot even when it names a real player as relay', async () => {
+    const { bob, chen } = await threePlayers()
+    const s = bob.state.value!
+    hub.createClient().publish(roomTopic('ABCDE'), {
+      type: 'state',
+      from: chen.me.value!.id,
+      state: { ...s, hostId: chen.me.value!.id, version: s.version - 1, theme: 'Old' },
+    })
+    await flush()
+    expect(bob.state.value?.theme).toBe('Animals')
+  })
+
+  describe('when the relay goes quiet', () => {
+    const relays = (rooms: Room[]) => rooms.filter((r) => r.isRelay.value)
+    const hostIds = (states: (GameState | null)[]) => new Set(states.map((s) => s?.hostId))
+
+    it('the next player takes over, and everyone follows', async () => {
+      const { host, bob, chen, tabs } = await threePlayers()
+      const screen = inScope(() => useScreen('ABCDE', { bridge: hub.createClient() }))
+      await flush()
+      const hanaId = host.me.value!.id
+      tabs.host.scope.stop() // the creator's laptop dies
+      await vi.advanceTimersByTimeAsync(AWAY_AFTER_MS + HEARTBEAT_MS)
+      await flush()
+      expect(relays([bob, chen])).toEqual([bob])
+      expect(hostIds([bob.state.value, chen.state.value, screen.state.value])).toEqual(
+        new Set([bob.me.value!.id]),
+      )
+      expect(chen.hostAlive.value).toBe(true)
+      expect(screen.relayChanged.value).toBe(true)
+      // The old relay counts as away, so it can be skipped or removed by the usual rules.
+      const s = bob.state.value!
+      expect(
+        isAway(
+          s.players.find((p) => p.id === hanaId)!,
+          s.sentAt,
+        ),
+      ).toBe(true)
+      expect(tabs.bob.storage.getItem(storageKeys.state('ABCDE'))).not.toBeNull()
+
+      chen.startWriting()
+      await flush()
+      expect(screen.state.value?.phase).toBe('writing')
+    })
+
+    it('the player after that waits a little longer, and takes over if needed', async () => {
+      const { bob, chen, tabs } = await threePlayers()
+      expect(names(chen)).toEqual(['Hana', 'Bob', 'Chen'])
+      tabs.host.scope.stop()
+      tabs.bob.scope.stop() // Bob's tab is gone too
+      await vi.advanceTimersByTimeAsync(AWAY_AFTER_MS + HEARTBEAT_MS)
+      await flush()
+      expect(chen.isRelay.value).toBe(false) // still waiting for Bob
+      await vi.advanceTimersByTimeAsync(TAKEOVER_STAGGER_MS)
+      await flush()
+      expect(chen.isRelay.value).toBe(true)
+      expect(bob.isRelay.value).toBe(false)
+    })
+
+    it('two tabs that both took over settle on one relay', async () => {
+      const { bob, chen, tabs } = await threePlayers()
+      const screen = inScope(() => useScreen('ABCDE', { bridge: hub.createClient() }))
+      await flush()
+      tabs.host.scope.stop()
+      // Nobody hears Bob take over, so Chen takes over as well.
+      const mute = vi.spyOn(tabs.bob.bridge, 'publish').mockImplementation(() => {})
+      const chenSends = vi.spyOn(tabs.chen.bridge, 'publish')
+      await vi.advanceTimersByTimeAsync(AWAY_AFTER_MS + TAKEOVER_STAGGER_MS + HEARTBEAT_MS)
+      await flush()
+      const relayedBy = (spy: typeof mute, id: string) =>
+        sent(spy).some((d) => (d as { state?: GameState }).state?.hostId === id)
+      expect(relayedBy(mute, bob.me.value!.id)).toBe(true)
+      expect(relayedBy(chenSends, chen.me.value!.id)).toBe(true)
+      mute.mockRestore()
+      await vi.advanceTimersByTimeAsync(2 * HEARTBEAT_MS)
+      await flush()
+      expect(relays([bob, chen])).toHaveLength(1)
+      const states = [bob.state.value, chen.state.value, screen.state.value]
+      expect(hostIds(states).size).toBe(1)
+      // Same version on both sides: the lower id won.
+      expect([...hostIds(states)][0]).toBe([bob.me.value!.id, chen.me.value!.id].sort()[0])
+    })
+
+    it('a relay that comes back steps down instead of rolling the room back', async () => {
+      const { bob, chen, tabs, hostStorage } = await threePlayers()
+      tabs.host.scope.stop()
+      await vi.advanceTimersByTimeAsync(AWAY_AFTER_MS + HEARTBEAT_MS)
+      chen.startWriting()
+      await flush()
+      expect(bob.state.value?.phase).toBe('writing')
+
+      const hana = open('ABCDE', hostStorage).room // reloads with the old state
+      expect(hana.isRelay.value).toBe(true)
+      await flush()
+      expect(hana.isRelay.value).toBe(false)
+      expect(hana.state.value?.phase).toBe('writing')
+      expect(hostStorage.getItem(storageKeys.state('ABCDE'))).toBeNull()
+      expect(chen.state.value).toMatchObject({ phase: 'writing', hostId: bob.me.value!.id })
+      expect(hana.me.value?.name).toBe('Hana') // still seated
+    })
+
+    it('a tab that wakes up from sleep neither takes over nor counts everyone as gone', async () => {
+      const { host, bob } = await threePlayers()
+      vi.setSystemTime(Date.now() + 3 * AWAY_AFTER_MS) // the whole laptop slept
+      document.dispatchEvent(new Event('visibilitychange'))
+      await flush()
+      expect(host.isRelay.value).toBe(true)
+      expect(bob.isRelay.value).toBe(false)
+      const s = host.state.value!
+      expect(s.players.some((p) => isAway(p, s.sentAt))).toBe(false)
+    })
+
+    it('spectators never take over', async () => {
+      const { host, bob, chen, tabs } = await threePlayers()
+      bob.startWriting()
+      await flush()
+      for (const r of [host, bob, chen]) r.submit({ label: 'x' })
+      await flush()
+      bob.deal()
+      await flush()
+      const storage = memoryStorage()
+      joinRoom('ABCDE', 'Zed', storage)
+      const zed = open('ABCDE', storage).room
+      await flush()
+      expect(zed.me.value?.spectator).toBe(true)
+      for (const tab of Object.values(tabs)) tab.scope.stop()
+      await vi.advanceTimersByTimeAsync(5 * AWAY_AFTER_MS)
+      await flush()
+      expect(zed.isRelay.value).toBe(false)
+      expect(zed.hostAlive.value).toBe(false)
+    })
+
+    it('queues the handoff snapshot instead of dropping it while offline', async () => {
+      const { host, tabs } = await threePlayers()
+      const publish = vi.spyOn(tabs.host.bridge, 'publish')
+      const hanaId = host.me.value!.id
+      host.leave()
+      const handoffs = publish.mock.calls.filter(([, data]) => {
+        const s = (data as { state?: GameState }).state
+        return s !== undefined && s.hostId !== hanaId
+      })
+      expect(handoffs.map(([, , opts]) => opts?.volatile)).toEqual([false])
+    })
   })
 })

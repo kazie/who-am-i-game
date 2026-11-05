@@ -8,9 +8,9 @@ import { hostRoom, joinRoom } from '../game/useRoom'
 
 const router = useRouter()
 
-function create({ theme, name }: { theme: string; name: string }) {
+function create(opts: { theme: string; name: string; pack?: string }) {
   const code = randomRoomCode()
-  hostRoom({ code, theme, name }, { storage: browserStorage() })
+  hostRoom({ code, ...opts }, { storage: browserStorage() })
   router.push({ name: 'room', params: { code } })
 }
 

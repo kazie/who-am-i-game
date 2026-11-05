@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { Entry } from '../game/protocol'
+import { turnsLabel } from '../game/reducer'
 import ImagePreview from './ImagePreview.vue'
 
 defineProps<{
@@ -15,6 +16,8 @@ defineProps<{
   /** Their turn to ask questions. */
   turn?: boolean
   guessing?: boolean
+  /** How many turns it took to guess, shown on solved cards. */
+  turns?: number
 }>()
 </script>
 
@@ -45,7 +48,11 @@ defineProps<{
       </p>
     </template>
     <p v-else class="muted">No identity</p>
-    <footer v-if="authorName && !hidden" class="muted small">Written by {{ authorName }}</footer>
+    <footer v-if="!hidden && (authorName || (solved && turns))" class="muted small">
+      <template v-if="solved && turns">Guessed in {{ turnsLabel(turns) }}</template>
+      <template v-if="solved && turns && authorName"> · </template>
+      <template v-if="authorName">Written by {{ authorName }}</template>
+    </footer>
   </article>
 </template>
 

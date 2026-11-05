@@ -7,6 +7,7 @@ export const LIMITS = {
   label: 80,
   // Resolved thumbnail URLs repeat the percent-encoded file name, so leave plenty of room.
   url: 4000,
+  pack: 40,
 } as const
 
 /** Trims and cuts user text to a limit. */
@@ -43,8 +44,9 @@ export interface GameState {
   code: string
   theme: string
   /**
-   * The tab that created the room. It holds the state and relays it (the bridge has no
-   * memory), but it has no extra say in the game: every player has the same buttons.
+   * The player whose tab holds the state and relays it (the bridge has no memory). It
+   * starts as the room's creator and passes on when that tab leaves or goes quiet. Always
+   * one of the players, and it has no extra say in the game: everyone has the same buttons.
    */
   hostId: string
   phase: Phase
@@ -62,15 +64,25 @@ export interface GameState {
   round: number
   /** playerId -> points over all rounds. */
   scores: Record<string, number>
+  /**
+   * The round uses a ready-made pack (src/game/packs.ts): no writing, the relay deals its
+   * cards. Only the id travels; the dealt cards are the players' entries, as usual.
+   */
+  pack?: string
   /** playerId -> points won this round: N-1 for the first correct guess, then N-2, … */
   roundScores: Record<string, number>
+  /**
+   * playerId -> turns finished this round. Optional: a snapshot from an older relay, or a
+   * saved state from before it existed, simply has no counts.
+   */
+  turnsTaken?: Record<string, number>
   /** Players who voted, between rounds, to finish the whole game. */
   finishVotes: string[]
-  /** The creator left: the room is gone for good. */
+  /** The relay left with nobody around to take over: the room is gone for good. */
   closed?: true
-  /** Incremented by the host on every change. */
+  /** Incremented by the relay on every change, and when the relay changes. */
   version: number
-  /** Host clock when this snapshot was sent, ms. */
+  /** Relay clock when this snapshot was sent, ms. */
   sentAt: number
 }
 
@@ -94,10 +106,15 @@ export type ClientMessage =
   /** A presentation screen asking for a snapshot; it never becomes a player. */
   | { type: 'watch'; from: string }
   | { type: 'kick'; from: string; playerId: string }
-  | { type: 'newRound'; from: string; theme: string }
+  /** With a pack id, the next round uses that pack and skips writing. */
+  | { type: 'newRound'; from: string; theme: string; pack?: string }
 
 export interface StateMessage {
   type: 'state'
+  /**
+   * The sending tab's player. Informational only: a handoff snapshot comes from the old
+   * relay but names the new one in `state.hostId`.
+   */
   from: string
   state: GameState
 }
@@ -153,7 +170,9 @@ export function isClientMessage(v: unknown): v is ClientMessage {
     case 'kick':
       return isPlayerId(v.playerId)
     case 'newRound':
-      return isString(v.theme, LIMITS.theme)
+      return (
+        isString(v.theme, LIMITS.theme) && (v.pack === undefined || isString(v.pack, LIMITS.pack))
+      )
     case 'ping':
     case 'leave':
     case 'startWriting':
@@ -214,6 +233,8 @@ export function isStateMessage(v: unknown): v is StateMessage {
     typeof s.round === 'number' &&
     isRecordOf(s.scores, (x) => typeof x === 'number') &&
     isRecordOf(s.roundScores, (x) => typeof x === 'number') &&
+    (s.pack === undefined || isString(s.pack, LIMITS.pack)) &&
+    (s.turnsTaken === undefined || isRecordOf(s.turnsTaken, (x) => typeof x === 'number')) &&
     isRecordOf(s.assignments, (x) => typeof x === 'string') &&
     (s.turn === undefined || typeof s.turn === 'string') &&
     (s.guess === undefined || isGuess(s.guess)) &&
@@ -222,17 +243,27 @@ export function isStateMessage(v: unknown): v is StateMessage {
 }
 
 /**
- * The snapshot a client should switch to, or undefined to ignore it: right room, from the
- * same relay as before, and not older than what we have. `from` is whatever the sender
- * wrote, so this keeps out stale and mismatched snapshots, not a deliberate impostor.
+ * The snapshot a tab should switch to, or undefined to ignore it. Every tab uses the same
+ * rule, the relay's included, so they all agree on one room even when two tabs relay at
+ * once for a moment (after a takeover): the higher version wins, then the lower relay id.
+ * A relay that accepts another relay's snapshot steps down.
+ *
+ * The relay changes (handoff, takeover) always bump the version, so a stale relay that
+ * comes back is behind and gets ignored. This keeps out stale and mismatched snapshots,
+ * not a deliberate impostor: see "Trust" in the README.
  */
 export function acceptSnapshot(
   current: GameState | null,
   data: unknown,
   code: string,
 ): GameState | undefined {
-  if (!isStateMessage(data) || data.state.code !== code) return undefined
-  if (current && (data.from !== current.hostId || data.state.version < current.version))
-    return undefined
-  return data.state
+  if (!isStateMessage(data)) return undefined
+  const next = data.state
+  if (next.code !== code) return undefined
+  // A relay is always one of the players.
+  if (!next.players.some((p) => p.id === next.hostId)) return undefined
+  if (!current || next.version > current.version) return next
+  if (next.version < current.version) return undefined
+  if (next.hostId === current.hostId) return next
+  return next.hostId < current.hostId ? next : undefined
 }

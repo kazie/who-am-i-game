@@ -4,6 +4,7 @@ import ScreenBoard from '../components/ScreenBoard.vue'
 import * as fixtures from '../fixtures'
 import type { GameState } from '../game/protocol'
 import { isStateMessage } from '../game/protocol'
+import { PACKS } from '../game/packs'
 import { activePlayers, identityOf, winners } from '../game/reducer'
 import { bigCatsEntries, bigCatsSteps } from './bigCats'
 
@@ -24,10 +25,22 @@ describe('the Big cats example', () => {
       expect(isStateMessage({ type: 'state', from: state.hostId, state })).toBe(true)
   })
 
-  it('uses real Wikipedia pictures for every cat, in the game and the story fixtures', () => {
-    for (const e of [...Object.values(bigCatsEntries), ...Object.values(fixtures.entries)]) {
+  it('uses real Wikipedia pictures for every card: example, story fixtures and packs', () => {
+    for (const e of [
+      ...Object.values(bigCatsEntries),
+      ...Object.values(fixtures.entries),
+      ...PACKS.flatMap((p) => p.entries),
+    ]) {
       expect(e.imageUrl).toMatch(/^https:\/\/commons\.wikimedia\.org\/wiki\/Special:FilePath\//)
       expect(e.sourceUrl).toMatch(/^https:\/\/en\.wikipedia\.org\/wiki\//)
+    }
+  })
+
+  it('every pack has unique ids, and unique cards for a decent group', () => {
+    expect(new Set(PACKS.map((p) => p.id)).size).toBe(PACKS.length)
+    for (const p of PACKS) {
+      expect(new Set(p.entries.map((e) => e.label)).size).toBe(p.entries.length)
+      expect(p.entries.length).toBeGreaterThanOrEqual(10)
     }
   })
 

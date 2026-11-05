@@ -2,12 +2,15 @@
 import { computed, ref } from 'vue'
 import type { GameState } from '../game/protocol'
 import { LIMITS } from '../game/protocol'
+import { packById } from '../game/packs'
+import PackPicker from './PackPicker.vue'
 import {
   activePlayers,
   can,
   endTally,
   finishTally,
   MIN_PLAYERS,
+  packTooSmall,
   roundsLabel,
   winnerNames,
 } from '../game/reducer'
@@ -18,10 +21,17 @@ const emit = defineEmits<{
   deal: []
   voteToEnd: [end: boolean]
   voteToFinish: [finish: boolean]
-  newRound: [theme: string]
+  newRound: [theme: string, pack?: string]
 }>()
 
 const nextTheme = ref('')
+// Next round: keep using the same pack by default.
+const nextPack = ref(props.state.pack ?? '')
+const pack = computed(() => packById(props.state.pack))
+function newRound() {
+  if (nextPack.value) emit('newRound', '', nextPack.value)
+  else emit('newRound', nextTheme.value)
+}
 const players = computed(() => activePlayers(props.state))
 const missing = computed(() => players.value.filter((p) => !p.entry).map((p) => p.name))
 const from = computed(() => props.meId ?? '')
@@ -35,7 +45,23 @@ const iVotedToFinish = computed(() => props.state.finishVotes.includes(from.valu
   <div class="panel stack">
     <h3>Game</h3>
 
-    <template v-if="state.phase === 'lobby'">
+    <template v-if="state.phase === 'lobby' && pack">
+      <p class="muted small">
+        Cards come from the pack <strong>{{ pack.theme }}</strong
+        >: nobody needs to write. Share the room code or link. Anyone can deal once everyone is in.
+      </p>
+      <button class="primary" :disabled="!can(state, { type: 'deal', from })" @click="emit('deal')">
+        Everyone's here: hand out cards
+      </button>
+      <p v-if="players.length < MIN_PLAYERS" class="muted small">
+        Need at least {{ MIN_PLAYERS }} players.
+      </p>
+      <p v-else-if="packTooSmall(state)" class="banner warn small">
+        This pack has cards for up to {{ pack.entries.length }} players.
+      </p>
+    </template>
+
+    <template v-else-if="state.phase === 'lobby'">
       <p class="muted small">Share the room code or link. Anyone can start once everyone is in.</p>
       <button
         class="primary"
@@ -69,8 +95,9 @@ const iVotedToFinish = computed(() => props.state.finishVotes.includes(from.valu
     </template>
 
     <template v-else-if="state.phase === 'finished'">
-      <form class="stack" @submit.prevent="emit('newRound', nextTheme)">
-        <label>
+      <form class="stack" @submit.prevent="newRound">
+        <PackPicker v-model="nextPack" />
+        <label v-if="!nextPack">
           Next theme
           <input v-model="nextTheme" :maxlength="LIMITS.theme" :placeholder="state.theme" />
         </label>

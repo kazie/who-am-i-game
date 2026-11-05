@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import type { GameState } from '../game/protocol'
-import { activePlayers, identityOf, isAway } from '../game/reducer'
+import { activePlayers, identityOf, isAway, turnsOf } from '../game/reducer'
 import IdentityCard from './IdentityCard.vue'
 
 const props = defineProps<{ state: GameState; meId?: string }>()
@@ -23,10 +23,11 @@ const cards = computed(() => {
       // Your own card stays secret only while the round is being played.
       hidden: isMe && !p.solved && s.phase === 'playing',
       entry: identity?.entry,
-      authorName: identity?.author.name,
+      authorName: s.pack ? undefined : identity?.author.name,
       away: isAway(p, s.sentAt),
       turn: s.phase === 'playing' && s.turn === p.id,
       guessing: s.guess?.playerId === p.id,
+      turns: turnsOf(s, p.id),
     }
   })
 })
@@ -46,6 +47,7 @@ const cards = computed(() => {
       :away="c.away"
       :turn="c.turn"
       :guessing="c.guessing"
+      :turns="c.turns"
     />
   </section>
 </template>

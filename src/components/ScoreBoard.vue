@@ -1,12 +1,15 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import type { GameState } from '../game/protocol'
-import { standings } from '../game/reducer'
+import { standings, turnsLabel, turnsOf } from '../game/reducer'
 
 const props = defineProps<{ state: GameState; meId?: string; large?: boolean }>()
 
 const rows = computed(() => standings(props.state))
 const over = computed(() => props.state.phase === 'over')
+// Turns only mean something once cards are out.
+const showTurns = computed(() => props.state.phase !== 'lobby' && props.state.phase !== 'writing')
+const turns = (id: string) => turnsOf(props.state, id)
 </script>
 
 <template>
@@ -16,6 +19,12 @@ const over = computed(() => props.state.phase === 'over')
       <span class="name">
         {{ r.player.name }}<span v-if="r.player.id === meId" class="muted"> (you)</span>
       </span>
+      <span
+        v-if="showTurns && !r.player.spectator"
+        class="turns muted"
+        :title="`${turnsLabel(turns(r.player.id))} this round`"
+        >🎤 {{ turns(r.player.id) }}</span
+      >
       <span v-if="r.round !== undefined" class="round muted">+{{ r.round }}</span>
       <strong class="total">{{ r.total }}</strong>
     </li>
@@ -50,6 +59,10 @@ li.winner {
 .name {
   flex: 1;
   font-weight: 600;
+}
+.turns {
+  font-size: 0.85em;
+  font-variant-numeric: tabular-nums;
 }
 .total {
   font-variant-numeric: tabular-nums;

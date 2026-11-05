@@ -5,9 +5,11 @@ import {
   activePlayers,
   finishTally,
   identityOf,
+  ordinal,
   playerById,
   roundEnded,
   tally,
+  turnsOf,
   winnerNames,
   winners,
 } from '../game/reducer'
@@ -44,8 +46,9 @@ const cards = computed(() =>
     return {
       player: p,
       entry: identity?.entry,
-      authorName: identity?.author.name,
+      authorName: s.value.pack ? undefined : identity?.author.name,
       turn: s.value.phase === 'playing' && s.value.turn === p.id,
+      turns: turnsOf(s.value, p.id),
     }
   }),
 )
@@ -75,6 +78,7 @@ const cards = computed(() =>
           <h2 class="headline">
             {{ s.phase === 'lobby' ? 'Waiting for players…' : 'Everyone writes one ✍️' }}
           </h2>
+          <p v-if="s.pack" class="muted">📦 Ready-made cards: nobody needs to write.</p>
           <ul class="names">
             <li v-for="p in players" :key="p.id">
               <template v-if="s.phase === 'writing'">{{ p.entry ? '✅' : '✍️' }}</template>
@@ -93,7 +97,10 @@ const cards = computed(() =>
           </div>
           <div v-else-if="turnPlayer" class="headline-box">
             <h2 class="headline">🎤 {{ turnPlayer.name }}'s turn</h2>
-            <p class="muted">Ask a yes/no question, or make a guess.</p>
+            <p class="muted">
+              Ask a yes/no question, or make a guess. ·
+              {{ ordinal(turnsOf(s, turnPlayer.id) + 1) }} turn this round
+            </p>
           </div>
         </template>
 
@@ -120,6 +127,7 @@ const cards = computed(() =>
               :hidden="false"
               :solved="c.player.solved"
               :turn="c.turn"
+              :turns="c.turns"
             />
             <article v-else class="unsolved" :class="{ turn: c.turn }">
               <strong>{{ c.player.name }}</strong>
