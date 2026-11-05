@@ -1,0 +1,28 @@
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      npm-minor-patch:
+        patterns: ['*']
+        update-types: [minor, patch]
+      npm-major:
+        patterns: ['*']
+        update-types: [major]
+    ignore:
+      # Histoire 1.0.0-beta.1 needs vite 7.
+      - dependency-name: vite
+        update-types: ['version-update:semver-major']
+      # typescript-eslint 8 supports TypeScript below 6.1.
+      - dependency-name: typescript
+        update-types: ['version-update:semver-major']
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      actions:
+        patterns: ['*']
