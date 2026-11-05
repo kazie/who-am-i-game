@@ -13,7 +13,9 @@ import {
 } from '../fixtures'
 import { ref } from 'vue'
 import type { GameState } from '../game/protocol'
+import { memoryStorage } from '../game/storage'
 import type { Alerts } from '../game/useAlerts'
+import { useNotes, type Notes } from '../game/useNotes'
 import type { Room } from '../game/useRoom'
 import RoomScreen from './RoomScreen.vue'
 
@@ -26,9 +28,18 @@ const at = (state: GameState | null, meId?: string, opts: StaticRoomOptions = {}
 const muted = ref(false)
 const alertsSwitch: Alerts = { muted, toggle: () => (muted.value = !muted.value) }
 
+const myNotes = useNotes(memoryStorage(), () => 'story')
+myNotes.add('Am I an animal?')
+myNotes.add('Do I have stripes?')
+myNotes.setAnswer(myNotes.notes.value[0]!.id, 'yes')
+myNotes.setAnswer(myNotes.notes.value[1]!.id, 'no')
+
+/** Extras that only real rooms have. */
+type Extras = { alerts?: Alerts; notes?: Notes }
+
 const soloLobby: GameState = { ...lobbyState, players: lobbyState.players.slice(0, 1) }
 
-const variants: [string, Room, Alerts?][] = [
+const variants: [string, Room, Extras?][] = [
   ['Join form (opened a room link)', at(null)],
   [
     'Connecting to the game server',
@@ -47,7 +58,8 @@ const variants: [string, Room, Alerts?][] = [
   ['Writing, before sending', at(writingState, 'p2')],
   ['Writing, entry sent', at(writingState, 'p1')],
   ['Playing, my turn', at(playingState, 'p3')],
-  ['Playing, with the alerts switch', at(playingState, 'p3'), alertsSwitch],
+  ['Playing, with the alerts switch', at(playingState, 'p3'), { alerts: alertsSwitch }],
+  ['Playing, with my notes', at(playingState, 'p3'), { notes: myNotes }],
   ["Playing, someone else's turn", at(playingState, 'p1')],
   ["Voting on Chen's guess", at(votingState, 'p2')],
   ['I am guessing', at(votingState, 'p3')],
@@ -63,9 +75,9 @@ const variants: [string, Room, Alerts?][] = [
 
 <template>
   <Story title="RoomScreen (every state)" :layout="{ type: 'single', iframe: false }">
-    <Variant v-for="[title, room, alerts] in variants" :key="title" :title="title">
+    <Variant v-for="[title, room, extras] in variants" :key="title" :title="title">
       <div class="page">
-        <RoomScreen :room="room" :alerts="alerts" />
+        <RoomScreen :room="room" :alerts="extras?.alerts" :notes="extras?.notes" />
       </div>
     </Variant>
   </Story>

@@ -8,6 +8,8 @@ import { isRoomCode, normalizeRoomCode } from '../game/ids'
 import { getSeatGuard } from '../game/seats'
 import { browserStorage } from '../game/storage'
 import { useAlerts, vibrate, webAudioBeeper } from '../game/useAlerts'
+import { notesKey, useNotes } from '../game/useNotes'
+import { useWakeLock } from '../game/useWakeLock'
 import { joinRoom, useRoom } from '../game/useRoom'
 
 const props = defineProps<{ code: string }>()
@@ -31,6 +33,21 @@ const alerts =
     vibrate,
   })
 
+// Private notes about your own card, one list per round, kept in this tab only.
+const notes =
+  room &&
+  useNotes(browserStorage(), () =>
+    room.state.value && room.me.value ? notesKey(code, room.state.value.round) : null,
+  )
+
+// Keep the screen on: always for the relay (a sleeping relay stalls the room until
+// another tab takes over), and for everyone while the cards are out.
+useWakeLock(() => {
+  const s = room?.state.value
+  if (!room || !s || s.closed || s.phase === 'over') return false
+  return room.isRelay.value || s.phase === 'playing'
+})
+
 function switchRoom({ code, name }: { code: string; name: string }) {
   joinRoom(code, name, browserStorage())
   router.push({ name: 'room', params: { code } })
@@ -38,6 +55,12 @@ function switchRoom({ code, name }: { code: string; name: string }) {
 </script>
 
 <template>
-  <RoomScreen v-if="room" :room="room" :alerts="alerts ?? undefined" @leave="router.push('/')" />
+  <RoomScreen
+    v-if="room"
+    :room="room"
+    :alerts="alerts ?? undefined"
+    :notes="notes ?? undefined"
+    @leave="router.push('/')"
+  />
   <BadRoomCode v-else :code="code" @join="switchRoom" />
 </template>
