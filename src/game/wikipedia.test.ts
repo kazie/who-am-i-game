@@ -54,17 +54,26 @@ describe('resolveImageUrl', () => {
     expect(called.searchParams.get('origin')).toBe('*')
   })
 
-  it('returns undefined when the article has no picture or the request fails', async () => {
+  it('returns undefined when the article has no picture', async () => {
     expect(
       await resolveImageUrl('https://en.wikipedia.org/wiki/X', async () =>
         Response.json({ query: { pages: [{}] } }),
       ),
     ).toBeUndefined()
-    expect(
-      await resolveImageUrl('https://en.wikipedia.org/wiki/X', async () => {
+  })
+
+  it('rejects when Wikipedia cannot be reached', async () => {
+    await expect(
+      resolveImageUrl('https://en.wikipedia.org/wiki/X', async () => {
         throw new Error('offline')
       }),
-    ).toBeUndefined()
+    ).rejects.toThrow('offline')
+    await expect(
+      resolveImageUrl(
+        'https://en.wikipedia.org/wiki/X',
+        async () => new Response('', { status: 503 }),
+      ),
+    ).rejects.toThrow('503')
   })
 
   it('turns file pages into FilePath URLs without fetching', async () => {

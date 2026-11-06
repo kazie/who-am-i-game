@@ -34,7 +34,7 @@ const cards = computed(() => {
 </script>
 
 <template>
-  <section class="board">
+  <section class="card-grid">
     <IdentityCard
       v-for="c in cards"
       :key="c.player.id"
@@ -51,11 +51,3 @@ const cards = computed(() => {
     />
   </section>
 </template>
-
-<style scoped>
-.board {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-  gap: 16px;
-}
-</style>

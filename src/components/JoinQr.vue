@@ -34,5 +34,8 @@ const qr = computed(() => {
 .qr {
   display: block;
   border-radius: 8px;
+  /* Never wider than a third of a narrow screen, whatever size was asked for. */
+  max-width: 33vw;
+  height: auto;
 }
 </style>

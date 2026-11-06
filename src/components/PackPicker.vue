@@ -9,9 +9,9 @@ const pack = defineModel<string>({ default: '' })
   <label>
     Cards
     <select v-model="pack">
-      <option value="">✍️ Everyone writes one</option>
+      <option value="">Everyone writes one</option>
       <option v-for="p in PACKS" :key="p.id" :value="p.id">
-        📦 {{ p.theme }} ({{ p.entries.length }} ready-made cards)
+        Pack: {{ p.theme }} ({{ p.entries.length }} cards)
       </option>
     </select>
   </label>

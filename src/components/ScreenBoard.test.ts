@@ -29,7 +29,9 @@ describe('ScreenBoard', () => {
   it('shows the live vote but not the answer being voted on', () => {
     const t = text(votingState)
     expect(t).toContain('Chen is guessing')
-    expect(t).toMatch(/✅ 1\s+❌ 0/)
+    expect(t).toMatch(/1 yes · 0 no · 2 of 2 needed/)
+    expect(t).toContain('Guessing')
+    expect(t).not.toContain('Asking')
     for (const label of secret) expect(t).not.toContain(label)
   })
 
@@ -39,7 +41,7 @@ describe('ScreenBoard', () => {
   })
 
   it('names the winner when the game is over', () => {
-    expect(text(overState)).toContain('🏆 Bob')
+    expect(text(overState)).toMatch(/The winner is\s*Bob/)
   })
 
   it('shows where to join: the site, the code and a QR code for the room link', () => {

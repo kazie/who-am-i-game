@@ -29,7 +29,10 @@ const back = () => (index.value = Math.max(0, index.value - 1))
 const next = () => (index.value = Math.min(props.steps.length - 1, index.value + 1))
 
 function onKey(ev: KeyboardEvent) {
-  if (ev.target instanceof HTMLInputElement) return
+  // Arrow keys mean something else in a form field.
+  const t = ev.target
+  if (t instanceof HTMLElement && (t.isContentEditable || t.matches('input, select, textarea')))
+    return
   if (ev.key === 'ArrowRight') next()
   if (ev.key === 'ArrowLeft') back()
 }
@@ -41,9 +44,9 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
   <div class="stack example">
     <div class="panel stack narration">
       <div class="row nav">
-        <button :disabled="index === 0" @click="back">◀ Back</button>
+        <button :disabled="index === 0" @click="back">Back</button>
         <span class="muted small">Step {{ index + 1 }} of {{ steps.length }}</span>
-        <button class="primary" :disabled="index === steps.length - 1" @click="next">Next ▶</button>
+        <button class="primary" :disabled="index === steps.length - 1" @click="next">Next</button>
       </div>
       <h2>{{ step.title }}</h2>
       <p>{{ step.text }}</p>
@@ -52,28 +55,28 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
     <div class="panes">
       <section class="stack">
         <div class="row">
-          <h3>📱 {{ focusName }}'s phone</h3>
+          <h3>{{ focusName }}'s phone</h3>
         </div>
         <div class="row" role="group" aria-label="Show another player's phone">
           <button
             v-for="p in players"
             :key="p.id"
             class="chip"
-            :class="{ primary: p.id === focus }"
+            :aria-pressed="p.id === focus"
             @click="picked = p.id"
           >
             {{ p.name }}
           </button>
         </div>
-        <!-- Pictures of a phone and a TV: readable, but clicks stop here, so nothing in the
-             example copies a link, opens a page or sends anything for its made-up room. -->
+        <!-- Pictures of a phone and a TV: readable (screen readers too), but clicks stop here,
+             so nothing in the example copies a link, opens a page or sends anything. -->
         <div class="device" title="Example only" @click.capture.stop.prevent>
           <RoomScreen :key="`${index}-${focus}`" :room="room" />
         </div>
       </section>
 
       <section class="stack">
-        <h3>📺 Presentation screen</h3>
+        <h3>Presentation screen</h3>
         <div class="device tv" title="Example only" @click.capture.stop.prevent>
           <ScreenBoard :state="step.state" />
         </div>
@@ -108,8 +111,8 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
   margin: 0;
 }
 .device {
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
+  border: 1px solid var(--border-strong);
+  border-radius: 10px;
   padding: 16px;
   background: var(--bg);
   /* The panes are narrower than a real screen: keep the inner layouts compact. */

@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import type { GameState } from '../game/protocol'
-import { can, identityOf, ordinal, playerById, tally, turnsOf } from '../game/reducer'
+import { can, identityOf, playerById, tally, turnCountLabel } from '../game/reducer'
+import AppIcon from './AppIcon.vue'
 
 const props = defineProps<{ state: GameState; meId?: string }>()
 const emit = defineEmits<{
@@ -14,11 +15,8 @@ const emit = defineEmits<{
 const from = computed(() => props.meId ?? '')
 const turnPlayer = computed(() => playerById(props.state, props.state.turn))
 const myTurn = computed(() => props.state.turn === from.value)
-/** "3rd turn this round": the one being played now. */
 const turnCount = computed(() =>
-  turnPlayer.value
-    ? `${ordinal(turnsOf(props.state, turnPlayer.value.id) + 1)} turn this round`
-    : '',
+  turnPlayer.value ? turnCountLabel(props.state, turnPlayer.value.id) : '',
 )
 const guess = computed(() => props.state.guess)
 const guesser = computed(() => playerById(props.state, guess.value?.playerId))
@@ -30,6 +28,7 @@ const canVote = computed(
     can(props.state, { type: 'vote', from: from.value, correct: false }),
 )
 const myVote = computed(() => guess.value?.votes[from.value])
+/** The votes on the guess being made; undefined when nobody is guessing. */
 const t = computed(() => tally(props.state))
 /** What the voters should compare the spoken guess with. */
 const answer = computed(() =>
@@ -41,32 +40,43 @@ const canSkip = computed(
 </script>
 
 <template>
-  <div v-if="turnPlayer" class="panel stack turn" :class="{ mine: myTurn }">
-    <template v-if="guess && t">
-      <h3 v-if="guessing">Say your guess out loud!</h3>
-      <h3 v-else>{{ guesser?.name }} is guessing</h3>
+  <div v-if="turnPlayer" class="callout stack" :class="{ now: myTurn || guessing }">
+    <!-- Read out turn changes, a guess starting and the votes coming in. -->
+    <div class="stack tight" aria-live="polite">
+      <template v-if="t">
+        <h3 v-if="guessing">Say your guess out loud!</h3>
+        <h3 v-else>{{ guesser?.name }} is guessing</h3>
+        <p class="muted small">
+          Votes: {{ t.yes }} correct, {{ t.no }} not quite. {{ t.needed }} of
+          {{ t.eligible }} needed.
+        </p>
+      </template>
+      <template v-else>
+        <h3>
+          <AppIcon name="mic" class="mic" />
+          {{ myTurn ? 'Your turn' : `${turnPlayer.name}'s turn` }}
+        </h3>
+        <p class="muted small count">{{ turnCount }}</p>
+      </template>
+    </div>
 
+    <template v-if="t">
+      <!-- Outside the live region: a screen reader must never say someone's card unasked. -->
       <p v-if="answer && !guessing" class="answer">
         Their card: <strong>{{ answer.entry.label }}</strong>
       </p>
-      <p class="muted small">
-        Votes: {{ t.yes }} correct, {{ t.no }} not quite. {{ t.needed }} of {{ t.eligible }} needed.
-      </p>
-
-      <div v-if="canVote" class="row">
-        <button :class="{ primary: myVote === true }" @click="emit('vote', true)">
-          ✅ Correct
+      <div v-if="canVote" class="row" role="group" aria-label="Your vote">
+        <button :aria-pressed="myVote === true" @click="emit('vote', true)">
+          <AppIcon name="check" /> Correct
         </button>
-        <button :class="{ primary: myVote === false }" @click="emit('vote', false)">
-          ❌ Not quite
+        <button :aria-pressed="myVote === false" @click="emit('vote', false)">
+          <AppIcon name="x" /> Not quite
         </button>
       </div>
       <button v-if="guessing" @click="emit('withdraw')">Never mind, keep asking</button>
     </template>
 
     <template v-else-if="myTurn">
-      <h3>Your turn 🎤</h3>
-      <p class="muted small count">{{ turnCount }}</p>
       <p class="muted small">
         Ask one yes/no question out loud. Think you know who you are? Make your guess and the others
         vote.
@@ -78,8 +88,6 @@ const canSkip = computed(
     </template>
 
     <template v-else>
-      <h3>{{ turnPlayer.name }}'s turn 🎤</h3>
-      <p class="muted small count">{{ turnCount }}</p>
       <p class="muted small">Answer their yes/no questions out loud.</p>
       <button v-if="canSkip" @click="emit('pass')">
         {{ turnPlayer.name }} is away: skip their turn
@@ -89,15 +97,10 @@ const canSkip = computed(
 </template>
 
 <style scoped>
-.turn.mine {
-  border-color: var(--accent);
-  border-width: 2px;
-}
-.count {
-  margin-top: -8px;
+.mic {
+  color: var(--accent);
 }
 .answer {
-  margin: 0;
   font-size: 1.1rem;
 }
 </style>

@@ -1,14 +1,19 @@
 <script setup lang="ts">
 import type { Entry } from '../game/protocol'
 import { turnsLabel } from '../game/reducer'
+import AppIcon from './AppIcon.vue'
 import ImagePreview from './ImagePreview.vue'
+import IndexCard from './IndexCard.vue'
 
 defineProps<{
   playerName: string
   entry?: Entry
   /** Written by. */
   authorName?: string
-  /** This is the viewer's own card and must stay secret. */
+  /**
+   * Nothing written on it shows: the viewer's own card (`isMe`), or someone's unsolved
+   * card on the shared screen.
+   */
   hidden: boolean
   isMe?: boolean
   solved?: boolean
@@ -22,20 +27,22 @@ defineProps<{
 </script>
 
 <template>
-  <article class="card" :class="{ me: isMe, away, turn }">
-    <header class="row">
-      <strong>{{ playerName }}{{ isMe ? ' (you)' : '' }}</strong>
-      <span v-if="guessing" class="badge turn">Guessing…</span>
-      <span v-else-if="turn" class="badge turn">🎤 Asking</span>
-      <span v-if="solved" class="badge ok">Solved</span>
-      <span v-if="away" class="badge">Away</span>
-    </header>
-    <div v-if="hidden" class="secret" aria-label="Your identity is hidden">
-      <span>❓</span>
-      <p>Who am I?</p>
-    </div>
+  <IndexCard :seed="playerName" :class="{ me: isMe, flat: away, lifted: turn || guessing }">
+    <template #head>
+      <span class="who">{{ playerName }}</span>
+      <span v-if="isMe" class="you">(you)</span>
+      <span v-if="guessing" class="status now">Guessing</span>
+      <span v-else-if="turn" class="status now"><AppIcon name="mic" /> Asking</span>
+      <span v-if="away" class="status">Away</span>
+    </template>
+    <template v-if="hidden">
+      <p class="unknown" aria-hidden="true">???</p>
+      <p class="note">
+        <span class="sr-only">Hidden card. </span>
+        {{ isMe ? 'Who am I?' : 'still guessing' }}
+      </p>
+    </template>
     <template v-else-if="entry">
-      <ImagePreview :src="entry.imageUrl" :alt="entry.label" />
       <p class="label">
         <a
           v-if="entry.sourceUrl"
@@ -46,81 +53,88 @@ defineProps<{
         >
         <template v-else>{{ entry.label }}</template>
       </p>
+      <ImagePreview class="photo" :src="entry.imageUrl" :alt="entry.label" />
     </template>
-    <p v-else class="muted">No identity</p>
-    <footer v-if="!hidden && (authorName || (solved && turns))" class="muted small">
-      <template v-if="solved && turns">Guessed in {{ turnsLabel(turns) }}</template>
-      <template v-if="solved && turns && authorName"> · </template>
-      <template v-if="authorName">Written by {{ authorName }}</template>
-    </footer>
-  </article>
+    <p v-else class="note">No identity</p>
+    <p v-if="solved && !hidden" class="stamp">
+      Solved<template v-if="turns"> in {{ turnsLabel(turns) }}</template>
+    </p>
+    <template v-if="!hidden && authorName" #foot>
+      <footer class="by muted small">Written by {{ authorName }}</footer>
+    </template>
+  </IndexCard>
 </template>
 
 <style scoped>
-.card {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  box-shadow: var(--shadow);
-  padding: 12px;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
+.flat .photo {
+  opacity: 0.5;
 }
-.card.me {
-  border-color: var(--accent);
-  border-width: 2px;
+.who {
+  overflow-wrap: anywhere;
 }
-.card.away {
-  opacity: 0.6;
-}
-header {
-  justify-content: space-between;
-}
-.badge {
-  font-size: 0.75rem;
-  padding: 2px 8px;
-  border-radius: 999px;
-  background: var(--surface-2);
-  border: 1px solid var(--border);
-}
-.card.turn {
-  box-shadow:
-    0 0 0 3px var(--accent),
-    var(--shadow);
-}
-.badge.turn {
+.me .who {
   color: var(--accent);
-  border-color: var(--accent);
 }
-.badge.ok {
-  color: var(--ok);
-  border-color: var(--ok);
+.you,
+.status {
+  font-family: var(--font-text);
+  font-weight: 500;
+  text-transform: none;
+  letter-spacing: 0;
+  font-size: 0.8em;
+  color: var(--muted);
 }
-.secret {
-  aspect-ratio: 4 / 3;
-  border-radius: 10px;
-  background: repeating-linear-gradient(
-    45deg,
-    var(--surface-2),
-    var(--surface-2) 10px,
-    var(--surface) 10px,
-    var(--surface) 20px
-  );
-  display: grid;
-  place-content: center;
-  text-align: center;
+.status {
+  margin-left: auto;
 }
-.secret span {
-  font-size: 3rem;
-}
-.secret p {
-  margin: 0;
+.status.now {
+  color: var(--accent);
   font-weight: 700;
+}
+.status + .status {
+  margin-left: 0;
 }
 .label {
-  margin: 0;
-  font-size: 1.15rem;
+  font-family: var(--font-typed);
   font-weight: 700;
+  font-size: 1.15em;
+  overflow-wrap: anywhere;
+}
+.label a {
+  color: inherit;
+  text-decoration-color: var(--rule-red);
+}
+/* A print laid on the card. */
+.ruled .photo {
+  margin: 4px 0 6px;
+  border: 4px solid var(--card);
+  outline: 1px solid var(--border);
+}
+.unknown {
+  font-family: var(--font-typed);
+  font-weight: 700;
+  font-size: 2.6em;
+  /* Three ruled lines tall (lh in line-height means the parent's line). */
+  line-height: 3lh;
+  text-align: center;
+  letter-spacing: 0.1em;
+  color: var(--muted);
+}
+.note {
+  text-align: center;
+  font-family: var(--font-typed);
+  color: var(--muted);
+}
+.ruled .stamp {
+  margin-top: 4px;
+  line-height: 1.6;
+  border-width: 2px;
+  color: var(--ok);
+  font-family: var(--font-typed);
+  font-size: 0.9em;
+  transform: rotate(-3deg);
+}
+.by {
+  padding: 0 12px 8px;
 }
 </style>

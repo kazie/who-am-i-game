@@ -3,17 +3,20 @@ import { computed, toRef } from 'vue'
 import type { GameState } from '../game/protocol'
 import {
   activePlayers,
+  beforeDeal,
   finishTally,
   identityOf,
-  ordinal,
   playerById,
   roundEnded,
   tally,
+  turnCountLabel,
   turnsOf,
   winnerNames,
   winners,
 } from '../game/reducer'
+import AppIcon from './AppIcon.vue'
 import IdentityCard from './IdentityCard.vue'
+import IndexCard from './IndexCard.vue'
 import JoinQr from './JoinQr.vue'
 import ScoreBoard from './ScoreBoard.vue'
 
@@ -48,6 +51,7 @@ const cards = computed(() =>
       entry: identity?.entry,
       authorName: s.value.pack ? undefined : identity?.author.name,
       turn: s.value.phase === 'playing' && s.value.turn === p.id,
+      guessing: s.value.guess?.playerId === p.id,
       turns: turnsOf(s.value, p.id),
     }
   }),
@@ -67,78 +71,90 @@ const cards = computed(() =>
           <p class="muted">{{ joinUrl ? 'Scan to join, or go to' : 'Join with code' }}</p>
           <p v-if="siteLabel" class="site">{{ siteLabel }}</p>
           <p v-if="siteLabel" class="muted">and enter the code</p>
-          <p class="code">{{ s.code }}</p>
+          <p class="room-code code">{{ s.code }}</p>
         </div>
       </div>
     </header>
 
     <div class="layout">
-      <main class="stack">
-        <template v-if="s.phase === 'lobby' || s.phase === 'writing'">
-          <h2 class="headline">
-            {{ s.phase === 'lobby' ? 'Waiting for players…' : 'Everyone writes one ✍️' }}
-          </h2>
-          <p v-if="s.pack" class="muted">📦 Ready-made cards: nobody needs to write.</p>
-          <ul class="names">
-            <li v-for="p in players" :key="p.id">
-              <template v-if="s.phase === 'writing'">{{ p.entry ? '✅' : '✍️' }}</template>
-              {{ p.name }}
-            </li>
-          </ul>
-        </template>
+      <section class="stack">
+        <!-- Always there, so every change of phase, turn and vote is read out. -->
+        <div class="stack" aria-live="polite">
+          <template v-if="beforeDeal(s)">
+            <h2 class="headline">
+              {{ s.phase === 'lobby' ? 'Waiting for players…' : 'Everyone writes one' }}
+            </h2>
+            <p v-if="s.pack" class="muted">Ready-made cards from a pack: nobody needs to write.</p>
+          </template>
 
-        <template v-else-if="s.phase === 'playing'">
-          <div v-if="s.guess && votes" class="headline-box guessing">
+          <div v-else-if="s.phase === 'playing' && votes" class="callout now headline-box">
             <h2 class="headline">{{ guesser?.name }} is guessing…</h2>
             <p class="tally">
-              ✅ {{ votes.yes }} &nbsp; ❌ {{ votes.no }}
-              <span class="muted">· {{ votes.needed }} of {{ votes.eligible }} needed</span>
+              <span class="yes">{{ votes.yes }} yes</span> ·
+              <span class="no">{{ votes.no }} no</span>
+              <span class="muted"> · {{ votes.needed }} of {{ votes.eligible }} needed</span>
             </p>
           </div>
-          <div v-else-if="turnPlayer" class="headline-box">
-            <h2 class="headline">🎤 {{ turnPlayer.name }}'s turn</h2>
+
+          <div v-else-if="s.phase === 'playing' && turnPlayer" class="callout now headline-box">
+            <h2 class="headline">
+              <AppIcon name="mic" class="mic" /> {{ turnPlayer.name }}'s turn
+            </h2>
             <p class="muted">
               Ask a yes/no question, or make a guess. ·
-              {{ ordinal(turnsOf(s, turnPlayer.id) + 1) }} turn this round
+              {{ turnCountLabel(s, turnPlayer.id) }}
             </p>
           </div>
-        </template>
 
-        <template v-else-if="s.phase === 'finished'">
-          <h2 class="headline">Round {{ s.round }} is over</h2>
-          <p class="muted">
-            Play another round, or finish the game: {{ finishing.votes }} of
-            {{ finishing.needed }} votes to finish.
-          </p>
-        </template>
+          <template v-else-if="s.phase === 'finished'">
+            <h2 class="headline">Round {{ s.round }} is over</h2>
+            <p class="muted">
+              Play another round, or finish the game: {{ finishing.votes }} of
+              {{ finishing.needed }} votes to finish.
+            </p>
+          </template>
 
-        <div v-else class="headline-box winner">
-          <p class="muted">The winner{{ winnerCount > 1 ? 's are' : ' is' }}</p>
-          <h2 class="headline">🏆 {{ winnerNames(s) }}</h2>
+          <div v-else-if="s.phase === 'over'" class="callout now headline-box">
+            <p class="muted">The winner{{ winnerCount > 1 ? 's are' : ' is' }}</p>
+            <h2 class="headline">{{ winnerNames(s) }}</h2>
+          </div>
         </div>
 
-        <section v-if="s.phase !== 'lobby' && s.phase !== 'writing'" class="cards">
-          <template v-for="c in cards" :key="c.player.id">
-            <IdentityCard
-              v-if="c.entry"
-              :player-name="c.player.name"
-              :entry="c.entry"
-              :author-name="c.authorName"
-              :hidden="false"
-              :solved="c.player.solved"
-              :turn="c.turn"
-              :turns="c.turns"
-            />
-            <article v-else class="unsolved" :class="{ turn: c.turn }">
-              <strong>{{ c.player.name }}</strong>
-              <span class="q">❓</span>
-              <span class="muted">still guessing</span>
-            </article>
-          </template>
-        </section>
-      </main>
+        <ul v-if="beforeDeal(s)" class="names">
+          <IndexCard
+            v-for="p in players"
+            :key="p.id"
+            as="li"
+            head-as="span"
+            :seed="p.name"
+            class="name-card"
+          >
+            <template #head>{{ p.name }}</template>
+            <span class="state" :class="{ sent: p.entry }">
+              <template v-if="s.phase === 'lobby'">here</template>
+              <template v-else-if="p.entry"><AppIcon name="check" /> sent</template>
+              <template v-else>writing…</template>
+            </span>
+          </IndexCard>
+        </ul>
 
-      <aside class="stack">
+        <section v-else class="card-grid">
+          <IdentityCard
+            v-for="c in cards"
+            :key="c.player.id"
+            :player-name="c.player.name"
+            :entry="c.entry"
+            :author-name="c.authorName"
+            :hidden="!c.entry"
+            :solved="c.player.solved"
+            :turn="c.turn"
+            :guessing="c.guessing"
+            :turns="c.turns"
+          />
+        </section>
+      </section>
+
+      <aside class="panel stack">
         <h3>Points</h3>
         <ScoreBoard :state="s" large />
       </aside>
@@ -169,9 +185,17 @@ const cards = computed(() =>
 }
 .join {
   display: flex;
+  flex-wrap: wrap;
+  justify-content: end;
   align-items: center;
-  gap: 20px;
+  gap: 12px 20px;
   text-align: right;
+}
+@media (max-width: 600px) {
+  .join {
+    justify-content: start;
+    text-align: left;
+  }
 }
 .site {
   font-size: clamp(1.25rem, 3vw, 2rem);
@@ -180,8 +204,6 @@ const cards = computed(() =>
 }
 .code {
   font-size: clamp(2rem, 5vw, 3.5rem);
-  font-weight: 800;
-  letter-spacing: 0.15em;
 }
 .layout {
   display: grid;
@@ -196,20 +218,24 @@ const cards = computed(() =>
 }
 .headline {
   font-size: clamp(2rem, 6vw, 4rem);
-  margin: 0;
+}
+.headline .mic {
+  color: var(--accent);
 }
 .headline-box {
   padding: 24px;
-  border-radius: var(--radius);
-  background: var(--surface);
-  border: 2px solid var(--accent);
-}
-.headline-box.winner {
-  text-align: center;
 }
 .tally {
   font-size: clamp(1.5rem, 4vw, 2.5rem);
-  margin: 8px 0 0;
+  margin-top: 8px;
+  font-variant-numeric: tabular-nums;
+}
+.tally .yes {
+  color: var(--ok);
+  font-weight: 700;
+}
+.tally .no {
+  font-weight: 700;
 }
 .names {
   list-style: none;
@@ -217,35 +243,18 @@ const cards = computed(() =>
   margin: 0;
   display: flex;
   flex-wrap: wrap;
-  gap: 12px;
-  font-size: 1.5rem;
-}
-.names li {
-  padding: 8px 16px;
-  border-radius: 999px;
-  background: var(--surface-2);
-}
-.cards {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
   gap: 16px;
+  font-size: 1.4rem;
 }
-.unsolved {
-  background: var(--surface);
-  border: 1px dashed var(--border);
-  border-radius: var(--radius);
-  padding: 12px;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 4px;
-  min-height: 200px;
+.name-card {
+  min-width: 9em;
 }
-.unsolved.turn {
-  border: 3px solid var(--accent);
+.state {
+  font-family: var(--font-typed);
+  font-size: 0.7em;
+  color: var(--muted);
 }
-.unsolved .q {
-  font-size: 3rem;
+.state.sent {
+  color: var(--ok);
 }
 </style>

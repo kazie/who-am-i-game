@@ -65,7 +65,8 @@ export function fileUrl(site: string, file: string, width = IMAGE_WIDTH) {
 
 /**
  * Turns whatever the player pasted into a direct image URL.
- * Resolves to undefined when there is no usable picture.
+ * Resolves to undefined when there is no usable picture, and rejects when Wikipedia
+ * couldn't be reached.
  */
 export async function resolveImageUrl(
   input: string,
@@ -93,16 +94,13 @@ export async function resolveImageUrl(
         formatversion: '2',
         origin: '*',
       }).toString()
-      try {
-        const res = await fetchFn(api.toString())
-        if (!res.ok) return undefined
-        const body = (await res.json()) as {
-          query?: { pages?: { thumbnail?: { source?: string } }[] }
-        }
-        return body.query?.pages?.[0]?.thumbnail?.source
-      } catch {
-        return undefined
+      // A failed request rejects, so the player can tell "no picture" from "no answer".
+      const res = await fetchFn(api.toString())
+      if (!res.ok) throw new Error(`Wikipedia answered ${res.status}`)
+      const body = (await res.json()) as {
+        query?: { pages?: { thumbnail?: { source?: string } }[] }
       }
+      return body.query?.pages?.[0]?.thumbnail?.source
     }
   }
 }

@@ -26,9 +26,13 @@ describe('ExampleGame', () => {
     })
     const eve = wrapper.findAll('button').find((b) => b.text() === 'Eve')!
     await eve.trigger('click')
-    expect(wrapper.text()).toContain("📱 Eve's phone")
-    // Eve's own card is hidden on Eve's phone.
-    expect(wrapper.text()).toContain('Who am I?')
+    expect(wrapper.text()).toContain("Eve's phone")
+    // Eve's own card is hidden on Eve's phone: question marks, no label, no picture.
+    const own = wrapper.find('.device .index-card.me')
+    expect(own.text()).toContain('Eve')
+    expect(own.find('.unknown').exists()).toBe(true)
+    expect(own.find('.label').exists()).toBe(false)
+    expect(own.find('img').exists()).toBe(false)
     wrapper.unmount()
   })
 

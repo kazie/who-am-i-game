@@ -92,7 +92,7 @@ function play(): ExampleStep[] {
   g.step(
     'alice',
     'Alice creates a room',
-    'Alice picks the theme "Big cats" and gets the room code CATS7. Alice shares the code (or the link) with the others, and opens the 📺 presentation screen on the TV.',
+    'Alice picks the theme "Big cats" and gets the room code CATS7. Alice shares the code (or the link) with the others, and opens the presentation screen on the TV.',
   )
 
   g.do(...PLAYERS.slice(1).map(([id, name]): ClientMessage => ({ type: 'hello', from: id, name })))
@@ -147,7 +147,7 @@ function play(): ExampleStep[] {
   g.step(
     voter,
     'A guess, and a vote',
-    `${g.name(wrong)} has an idea and says out loud: "Am I a ${wrongLabel}?" Nobody can see their own card, so the others vote. ${g.name(voter)}'s phone shows the real answer (${g.cardOf(wrong)}), and ${g.name(voter)} votes ❌.`,
+    `${g.name(wrong)} has an idea and says out loud: "Am I a ${wrongLabel}?" Nobody can see their own card, so the others vote. ${g.name(voter)}'s phone shows the real answer (${g.cardOf(wrong)}), and ${g.name(voter)} votes "Not quite".`,
   )
 
   g.do(
@@ -159,14 +159,14 @@ function play(): ExampleStep[] {
   g.step(
     wrong,
     'Not quite',
-    `The majority says ❌, so the turn passes to ${g.name(g.turn())}. ${g.name(wrong)} keeps playing and can guess again on a later turn.`,
+    `The majority says "Not quite", so the turn passes to ${g.name(g.turn())}. ${g.name(wrong)} keeps playing and can guess again on a later turn.`,
   )
 
   const winner1 = g.guess(true)
   g.step(
     winner1,
     'First correct guess: 4 points',
-    `${g.name(winner1)} asks "Am I a ${g.cardOf(winner1)}?" and the others vote ✅. ${g.name(winner1)}'s card is revealed, also on the presentation screen. With 5 players, the first correct guess is worth 4 points.`,
+    `${g.name(winner1)} asks "Am I a ${g.cardOf(winner1)}?" and the others vote "Correct". ${g.name(winner1)}'s card is revealed, also on the presentation screen. With 5 players, the first correct guess is worth 4 points.`,
   )
 
   const awards: string[] = []
@@ -220,7 +220,7 @@ function play(): ExampleStep[] {
   g.step(
     'eve',
     'We have a winner',
-    `Eve's vote makes it a majority, so the game is over. 🏆 ${winnerNames(g.state)} won with the most points over both rounds!`,
+    `Eve's vote makes it a majority, so the game is over. ${winnerNames(g.state)} won with the most points over both rounds!`,
   )
 
   return g.steps
