@@ -151,6 +151,9 @@ export const isTerminal = (s: GameState) => s.closed === true || s.phase === 'ov
 /** All cards are revealed: the round, or the whole game, is over. */
 export const roundEnded = (s: GameState) => s.phase === 'finished' || s.phase === 'over'
 
+/** Still gathering players or writing entries: no cards are out yet. */
+export const beforeDeal = (s: GameState) => s.phase === 'lobby' || s.phase === 'writing'
+
 /** The player(s) with the most points. */
 export function winners(s: GameState) {
   const rows = standings(s)
@@ -172,6 +175,10 @@ export function ordinal(n: number) {
   const suffix = teen ? 'th' : (['th', 'st', 'nd', 'rd'][n % 10] ?? 'th')
   return `${n}${suffix}`
 }
+
+/** "3rd turn this round": the turn a player is on now. */
+export const turnCountLabel = (s: GameState, playerId: string) =>
+  `${ordinal(turnsOf(s, playerId) + 1)} turn this round`
 
 export const winnerNames = (s: GameState) =>
   winners(s)
@@ -398,8 +405,7 @@ function apply(s: GameState, a: ClientMessage, { now, rng = Math.random }: Reduc
       const target = playerById(s, a.playerId)
       if (!known || !target || target.id === s.hostId || target.id === a.from) return s
       // No one is in charge: you can only clear out players who left, or spectators.
-      const allowed =
-        target.spectator || ((s.phase === 'lobby' || s.phase === 'writing') && isAway(target, now))
+      const allowed = target.spectator || (beforeDeal(s) && isAway(target, now))
       if (!allowed) return s
       return {
         ...s,

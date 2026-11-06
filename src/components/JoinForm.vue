@@ -29,7 +29,7 @@ function join() {
         :maxlength="ROOM_CODE_LENGTH + 2"
         placeholder="ABCDE"
         autocapitalize="characters"
-        class="code"
+        class="room-code code"
         required
       />
     </label>
@@ -44,7 +44,5 @@ function join() {
 <style scoped>
 .code {
   text-transform: uppercase;
-  letter-spacing: 0.2em;
-  font-family: ui-monospace, monospace;
 }
 </style>

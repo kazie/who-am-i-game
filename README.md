@@ -8,7 +8,7 @@ you. Ask yes/no questions out loud (in the room or on a video call) until you wo
 There's no game master: every player has the same buttons, and the group decides together.
 
 1. **Create a room.** Someone picks a theme ("Famous scientists", "Animals", …) and shares the
-   5-letter room code or link. Short on ideas, or time? Pick a **📦 ready-made pack** instead
+   5-letter room code or link. Short on ideas, or time? Pick a **ready-made pack** instead
    (Big cats, Animals, Famous scientists, Landmarks, Famous paintings): everyone gets a random
    card from it, with a Wikipedia picture, and nobody has to write.
 2. **Lobby.** Players join with the code and their name. When everyone is in, anyone starts
@@ -26,27 +26,27 @@ There's no game master: every player has the same buttons, and the group decides
      **Done, next player**.
    - Think you know? Press **I want to guess** and say it out loud. You can't see your own
      card, so the **others vote**: a majority of the players who are around (away players
-     don't block it) decides whether it's ✅ correct or ❌ not quite.
+     don't block it) decides whether it's **Correct** or **Not quite**.
    - A correct guess reveals your card and scores points: with N players, the first correct
      guess of the round earns **N-1**, the next N-2, and so on down to 0. A wrong guess just
      passes the turn, and you keep playing.
    - If the active player has gone away, anyone can skip their turn.
    - When it becomes your turn, or a guess needs your vote, your phone beeps and vibrates and
-     a background tab shows it in its title. **🔔 Alerts** switches the sound and vibration off.
+     a background tab shows it in its title. **Alerts** switches the sound and vibration off.
      (Browsers only allow the sound after you have tapped or clicked somewhere on the page.)
-   - **📝 My notes**: jot down what you've learned about your card ("Am I an animal?" ✅).
+   - **My notes**: jot down what you've learned about your card ("Am I an animal?" Yes).
      Only you see them, on your own device, and they start over each round.
    - The app counts each player's turns this round. Solved cards show how many it took
-     ("Guessed in 4 turns").
+     ("Solved in 4 turns").
 5. **Round over.** The round ends when everyone has guessed theirs, or early if a majority votes
    to end it (anyone still guessing gets 0). All cards are revealed.
 6. **Again, or finish.** Anyone can start the next round with a new theme or a pack. Points add
    up over rounds. When the group has had enough, a majority votes to finish, and the player
-   with the most points wins 🏆 (ties share the win).
+   with the most points wins (ties share the win).
 
 ### The presentation screen
 
-Every room has a **📺 Presentation screen** link (`#/room/<CODE>/screen`). Open it on a TV,
+Every room has a **Presentation screen** link (`#/room/<CODE>/screen`). Open it on a TV,
 or share that window in your video call. It shows how to join (a QR code that opens the room
 on a phone, plus the site's address and the room code for typing in by hand), whose turn it
 is, the live vote, the points and, at the end, the winner. It only watches and never joins as
@@ -58,7 +58,7 @@ Each player still sees the others' cards on their own device.
 
 ### See an example first
 
-The start page links to **👀 See an example game** (`#/example`). Five friends play two rounds
+The start page links to **See an example game** (`#/example`). Five friends play two rounds
 of "Big cats" (lion, tiger, serval, caracal, puma, …) with real Wikipedia pictures. You can
 step through it and look at any player's phone next to the presentation screen. The example is
 played by the real game rules (`src/example/bigCats.ts`), so it never goes out of date.
@@ -99,6 +99,12 @@ To play a round over a running bridge as part of the tests:
 ```sh
 BRIDGE_URL=ws://localhost:8080/ws pnpm test
 ```
+
+### Design
+
+The look (index cards on a table, two typefaces, no emoji icons) is written down in
+[DESIGN.md](DESIGN.md), and `src/design.test.ts` checks the rules it can. Read it before
+changing anything visual.
 
 ### Stories
 

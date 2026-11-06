@@ -5,7 +5,7 @@ import { readJson, writeJson, type KeyValueStorage } from './storage'
 
 export type Answer = 'yes' | 'no' | 'maybe'
 
-/** Something a player learned about their own card, e.g. "Am I an animal?" ✅. */
+/** Something a player learned about their own card, e.g. "Am I an animal?": yes. */
 export interface Note {
   id: string
   text: string

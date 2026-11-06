@@ -48,7 +48,7 @@ const seats: [string, Room][] = [
         <RoomScreen :room="room" :resolve-image="resolveImage" />
       </div>
     </Variant>
-    <Variant title="📺 Presentation screen">
+    <Variant title="Presentation screen">
       <div class="page">
         <ScreenBoard v-if="screen.state.value" :state="screen.state.value" />
       </div>

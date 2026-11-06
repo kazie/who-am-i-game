@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import type { GameState } from '../game/protocol'
 import { LIMITS } from '../game/protocol'
 import { packById } from '../game/packs'
@@ -27,6 +27,14 @@ const emit = defineEmits<{
 const nextTheme = ref('')
 // Next round: keep using the same pack by default.
 const nextPack = ref(props.state.pack ?? '')
+// This stays mounted from round to round: start each round's choice afresh.
+watch(
+  () => props.state.round,
+  () => {
+    nextTheme.value = ''
+    nextPack.value = props.state.pack ?? ''
+  },
+)
 const pack = computed(() => packById(props.state.pack))
 function newRound() {
   if (nextPack.value) emit('newRound', '', nextPack.value)
@@ -122,7 +130,7 @@ const iVotedToFinish = computed(() => props.state.finishVotes.includes(from.valu
     </template>
 
     <p v-else class="banner">
-      Game over after {{ roundsLabel(state.round) }}. 🏆 {{ winnerNames(state) }} won! Create a new
+      Game over after {{ roundsLabel(state.round) }}. {{ winnerNames(state) }} won! Create a new
       room to play again.
     </p>
   </div>

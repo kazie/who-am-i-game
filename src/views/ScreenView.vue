@@ -35,7 +35,7 @@ useWakeLock(() => state.value !== null && !state.value.closed)
     screen
     @open="(c) => router.push({ name: 'screen', params: { code: c } })"
   />
-  <template v-else>
+  <div v-else class="stack">
     <RoomStatusBanners
       v-if="state"
       :connection="screen.connection.value"
@@ -55,5 +55,5 @@ useWakeLock(() => state.value !== null && !state.value.closed)
         }}
       </p>
     </div>
-  </template>
+  </div>
 </template>
