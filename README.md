@@ -108,7 +108,8 @@ changing anything visual.
 
 ### Stories
 
-`pnpm story:dev` opens Histoire with a story for every component and view:
+`pnpm story:dev` opens Histoire with a story for every component and view, in folders
+(Basics, Start, Room, Presentation screen):
 
 - every state of the room screen (join form, connecting, removed, closed, each phase, warning
   banners), built from fixed states with `src/example/staticRoom.ts`;
@@ -116,7 +117,12 @@ changing anything visual.
 - a live game over an in-memory bridge;
 - the whole Big cats walkthrough, step by step.
 
-`src/stories.test.ts` fails if a component or view has no story.
+`src/stories.test.ts` fails if a component or view has no story, and if a story would lay
+out for Histoire's window instead of the preview: with `iframe: false`, or in a grid (which
+has no iframe) when it uses media queries or `vw`. Helpers made only for stories end in
+`.stories.ts`, and ESLint keeps them and Histoire out of the game. In Histoire,
+`histoire.config.ts` scopes `style.css` to the stories so it doesn't restyle Histoire itself,
+and `src/histoire.css` lays the previews on the table.
 
 To host the game publicly over `https`, the bridge needs TLS: browsers only let an `https`
 page connect to a `wss://` bridge. Build with `VITE_BRIDGE_URL=wss://your-bridge/ws`.

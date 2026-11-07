@@ -22,7 +22,7 @@ const states = {
 </script>
 
 <template>
-  <Story title="GameControls" :layout="{ type: 'grid', width: 300 }">
+  <Story title="Room/GameControls" :layout="{ type: 'grid', width: 300 }">
     <Variant v-for="(state, title) in states" :key="title" :title="title">
       <GameControls
         :state="state"

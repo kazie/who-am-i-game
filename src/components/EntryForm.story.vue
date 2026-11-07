@@ -13,7 +13,7 @@ const submitted = entries.serval
 </script>
 
 <template>
-  <Story title="EntryForm" :layout="{ type: 'single', iframe: false }">
+  <Story title="Room/EntryForm">
     <Variant title="Empty (live Wikipedia lookup)">
       <EntryForm theme="Big cats" @submit="onSubmit" />
     </Variant>

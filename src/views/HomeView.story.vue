@@ -3,7 +3,7 @@ import HomeView from './HomeView.vue'
 </script>
 
 <template>
-  <Story title="Views/HomeView" :layout="{ type: 'single', iframe: false }">
+  <Story title="Start/HomeView">
     <Variant title="Start page">
       <div class="page"><HomeView /></div>
     </Variant>

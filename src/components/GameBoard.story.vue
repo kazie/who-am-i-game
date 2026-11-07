@@ -4,7 +4,7 @@ import GameBoard from './GameBoard.vue'
 </script>
 
 <template>
-  <Story title="GameBoard">
+  <Story title="Room/GameBoard">
     <Variant title="Playing, as Alice">
       <GameBoard :state="playingState" me-id="p1" />
     </Variant>

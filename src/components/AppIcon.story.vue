@@ -5,7 +5,7 @@ const names: IconName[] = ['mic', 'relay', 'bell', 'bell-off', 'screen', 'check'
 </script>
 
 <template>
-  <Story title="AppIcon" :layout="{ type: 'single', iframe: false }">
+  <Story title="Basics/AppIcon">
     <Variant title="All icons">
       <ul class="icons">
         <li v-for="n in names" :key="n"><AppIcon :name="n" /> {{ n }}</li>

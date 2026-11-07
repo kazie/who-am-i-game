@@ -4,7 +4,7 @@ import ExampleGame from './ExampleGame.vue'
 </script>
 
 <template>
-  <Story title="ExampleGame (Big cats walkthrough)" :layout="{ type: 'single', iframe: false }">
+  <Story title="Start/ExampleGame (Big cats walkthrough)">
     <Variant title="Whole game, from the start">
       <ExampleGame :steps="bigCatsSteps" />
     </Variant>

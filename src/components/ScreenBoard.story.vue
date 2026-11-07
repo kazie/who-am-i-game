@@ -24,7 +24,7 @@ const variants = [
 </script>
 
 <template>
-  <Story title="ScreenBoard (presentation screen)" :layout="{ type: 'single', iframe: false }">
+  <Story title="Presentation screen/ScreenBoard">
     <Variant v-for="[title, state] in variants" :key="title" :title="title">
       <ScreenBoard :state="state" :join-url="exampleJoinUrl" :site-url="exampleSite" />
     </Variant>
