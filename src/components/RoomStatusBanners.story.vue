@@ -3,7 +3,7 @@ import RoomStatusBanners from './RoomStatusBanners.vue'
 </script>
 
 <template>
-  <Story title="RoomStatusBanners" :layout="{ type: 'grid', width: 420 }">
+  <Story title="Room/RoomStatusBanners" :layout="{ type: 'grid', width: 420 }">
     <Variant title="All good (shows nothing)">
       <RoomStatusBanners connection="open" host-alive relay-name="Alice" />
     </Variant>

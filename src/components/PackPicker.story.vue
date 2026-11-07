@@ -7,7 +7,7 @@ const animals = ref('animals')
 </script>
 
 <template>
-  <Story title="PackPicker" :layout="{ type: 'grid', width: 320 }">
+  <Story title="Start/PackPicker" :layout="{ type: 'grid', width: 320 }">
     <Variant title="Everyone writes (default)">
       <PackPicker v-model="writing" />
       <p class="muted small">Chosen: {{ writing || 'none' }}</p>

@@ -4,7 +4,7 @@ import JoinForm from './JoinForm.vue'
 </script>
 
 <template>
-  <Story title="JoinForm" :layout="{ type: 'grid', width: 380 }">
+  <Story title="Start/JoinForm" :layout="{ type: 'grid', width: 380 }">
     <Variant title="Join with a code">
       <JoinForm @join="logEvent('join', $event)" />
     </Variant>

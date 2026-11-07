@@ -4,7 +4,7 @@ import BadRoomCode from './BadRoomCode.vue'
 </script>
 
 <template>
-  <Story title="BadRoomCode" :layout="{ type: 'grid', width: 420 }">
+  <Story title="Start/BadRoomCode" :layout="{ type: 'grid', width: 420 }">
     <Variant title="Player link with a mistyped code">
       <BadRoomCode code="ABCD0" @join="logEvent('join', $event)" />
     </Variant>

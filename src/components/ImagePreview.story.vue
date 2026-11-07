@@ -4,7 +4,7 @@ import ImagePreview from './ImagePreview.vue'
 </script>
 
 <template>
-  <Story title="ImagePreview" :layout="{ type: 'grid', width: 240 }">
+  <Story title="Room/ImagePreview" :layout="{ type: 'grid', width: 240 }">
     <Variant title="Image">
       <ImagePreview :src="entries.lion.imageUrl" alt="Lion" />
     </Variant>

@@ -3,7 +3,7 @@ import ExampleView from './ExampleView.vue'
 </script>
 
 <template>
-  <Story title="Views/ExampleView (How to play)" :layout="{ type: 'single', iframe: false }">
+  <Story title="Start/ExampleView (How to play)">
     <Variant title="How to play">
       <div class="page"><ExampleView /></div>
     </Variant>

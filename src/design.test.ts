@@ -1,16 +1,14 @@
 // @vitest-environment node
 import { readFileSync } from 'node:fs'
-import { relative, sep } from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { SRC, sourceFiles } from './testFiles'
+import { sourceFiles, srcPath } from './testFiles'
 
 /**
  * Checks for the rules in DESIGN.md that a machine can check, so the look doesn't drift.
  */
 const sources = sourceFiles()
   .filter((f) => /\.(vue|ts|css)$/.test(f) && !f.endsWith('.test.ts'))
-  // Forward slashes on every platform, to match EMOJI_ALLOWED.
-  .map((f) => ({ file: relative(SRC, f).split(sep).join('/'), source: readFileSync(f, 'utf8') }))
+  .map((f) => ({ file: srcPath(f), source: readFileSync(f, 'utf8') }))
 
 /** Everything that can put text on screen: components, views, game code, example narration. */
 const shown = sources.filter((s) => !s.file.endsWith('.css'))

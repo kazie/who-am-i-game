@@ -4,7 +4,7 @@ import ScoreBoard from './ScoreBoard.vue'
 </script>
 
 <template>
-  <Story title="ScoreBoard" :layout="{ type: 'grid', width: 320 }">
+  <Story title="Room/ScoreBoard" :layout="{ type: 'grid', width: 320 }">
     <Variant title="No points yet">
       <ScoreBoard :state="lobbyState" me-id="p1" />
     </Variant>

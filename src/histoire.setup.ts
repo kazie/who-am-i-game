@@ -2,6 +2,12 @@ import { defineSetupVue3 } from '@histoire/plugin-vue'
 import { createMemoryHistory, createRouter } from 'vue-router'
 import { routes } from './routes'
 import './style.css'
+import './histoire.css'
+import { movedStoryLink } from './storyLinks'
+
+// Old links to a story that has since moved go to where it is now.
+const moved = movedStoryLink(location.hash)
+if (moved) location.replace(moved)
 
 // Stories are a static site with no game server. histoire.config.ts already swaps out the
 // bridge module; this also stops any other code from opening a connection.

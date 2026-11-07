@@ -5,7 +5,7 @@ import PlayerList from './PlayerList.vue'
 </script>
 
 <template>
-  <Story title="PlayerList" :layout="{ type: 'grid', width: 300 }">
+  <Story title="Room/PlayerList" :layout="{ type: 'grid', width: 300 }">
     <Variant title="Lobby">
       <PlayerList :state="lobbyState" me-id="p1" @kick="logEvent('kick', $event)" />
     </Variant>

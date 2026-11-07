@@ -14,7 +14,7 @@ const awayTurn = { ...playingState, turn: 'p4' }
 </script>
 
 <template>
-  <Story title="TurnPanel" :layout="{ type: 'grid', width: 340 }">
+  <Story title="Room/TurnPanel" :layout="{ type: 'grid', width: 340 }">
     <Variant title="My turn">
       <TurnPanel :state="playingState" me-id="p3" v-bind="log" />
     </Variant>

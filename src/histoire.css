@@ -1,0 +1,12 @@
+/*
+ * Stories only (imported by histoire.setup.ts). The class and attribute names are Histoire's
+ * own markup; src/histoire.test.ts fails if an upgrade changes them.
+ *
+ * Histoire draws every preview on white or gray and lays the chosen background preset on
+ * top; its default preset is transparent. Lay the previews on the game's table instead, so
+ * cards look the way they do in the game. (!important: Histoire's dark: classes outrank it.)
+ */
+.histoire-story-responsive-preview div:has(> [data-test-id='responsive-preview-bg']),
+.histoire-story-variant-grid-item [data-test-id='sandbox-render'] {
+  background-color: var(--bg) !important;
+}
