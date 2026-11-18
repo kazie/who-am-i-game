@@ -22,6 +22,10 @@ function join() {
 <template>
   <form class="panel stack" @submit.prevent="join">
     <h2>{{ props.code ? `Join room ${props.code}` : 'Join a game' }}</h2>
+    <p v-if="props.code" class="muted">
+      Who Am I? is a party game. Everyone gets a secret card that the others can see, but you can't.
+      Ask yes/no questions out loud until you work out who you are.
+    </p>
     <label v-if="!props.code">
       Room code
       <input

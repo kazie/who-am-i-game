@@ -24,11 +24,11 @@ defineProps<{
       Lost connection to the game server, reconnecting…
     </p>
     <p v-else-if="!hostAlive" class="banner warn">
-      {{ relayName }}'s tab keeps the room running and seems to be gone. Another player's tab takes
-      over if it doesn't come back soon.
+      {{ relayName }} (the host) seems to be gone, and their tab keeps the room running. Another
+      player takes over as host if it doesn't come back soon.
     </p>
     <p v-else-if="relayChanged" class="banner">
-      <AppIcon name="relay" /> {{ relayName }}'s tab keeps the room running now.
+      <AppIcon name="relay" /> {{ relayName }} is the host now: their tab keeps the room running.
     </p>
   </div>
 </template>

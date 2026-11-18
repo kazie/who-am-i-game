@@ -118,6 +118,8 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
   /* The panes are narrower than a real screen: keep the inner layouts compact. */
   font-size: 0.9rem;
   cursor: default;
+  /* Nothing in a pictured phone sticks to the real page (turn bar, notes dock). */
+  overflow: hidden;
 }
 .device.tv {
   background: var(--surface-2);

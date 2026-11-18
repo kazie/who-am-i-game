@@ -5,15 +5,20 @@ you. Ask yes/no questions out loud (in the room or on a video call) until you wo
 
 ## How a game goes
 
-There's no game master: every player has the same buttons, and the group decides together.
+Every player has the same buttons, and the group decides together. The player who created the
+room is also the **host**: if someone forgets to press a button or drops out, the host can move
+their turn on or remove them. If the host's tab leaves or goes quiet, hosting passes to the
+player whose tab takes over running the room (see "How it works"), so there is always a host.
 
 1. **Create a room.** Someone picks a theme ("Famous scientists", "Animals", …) and shares the
    5-letter room code or link. Short on ideas, or time? Pick a **ready-made pack** instead
    (Big cats, Animals, Famous scientists, Landmarks, Famous paintings): everyone gets a random
    card from it, with a Wikipedia picture, and nobody has to write.
-2. **Lobby.** Players join with the code and their name. When everyone is in, anyone starts
-   the writing round (with a pack, anyone hands out the cards and the game skips to step 4).
-3. **Writing.** Each player writes **one** entry for the theme. Adding a picture link is
+2. **Lobby.** Players join with the code and their name. While they wait, a short "How to play"
+   card explains the game. When everyone is in, anyone starts the writing round (with a pack,
+   anyone hands out the cards and the game skips to step 4).
+3. **Writing.** Each player writes **one** card for the theme, **for someone else**: the cards
+   are shuffled, so you never get the one you wrote. Adding a picture link is
    optional but strongly encouraged. Any of these work:
    - a Wikipedia article, e.g. `https://en.wikipedia.org/wiki/Marie_Curie` (its main picture is used)
    - a picture on Wikipedia, i.e. the link you get after clicking an image
@@ -22,20 +27,32 @@ There's no game master: every player has the same buttons, and the group decides
 4. **Playing.** Anyone presses **Hand out identities** once all entries are in. Entries are
    shuffled so nobody gets the one they wrote. You see everyone else's card and picture, but
    your own says "Who am I?".
+   - The first time a browser sees a deal, the others' cards stay covered until the player taps
+     **Got it** on a short note: never say what's on someone else's card. (A first-time player
+     once read the cards out loud.) The **How to play** button shows the rules again any time.
+   - Whose turn it is stays stuck to the top of the screen, with that player's card named, so
+     you can answer without scrolling. Below it are **their cards**; your own card and your
+     notes sit in a column beside them on a computer, or in a dock at the bottom of a phone.
    - The app rotates turns. On your turn, ask one yes/no question out loud, then press
-     **Done, next player**.
+     **Done, next player**. Turns pass over players who are away.
    - Think you know? Press **I want to guess** and say it out loud. You can't see your own
      card, so the **others vote**: a majority of the players who are around (away players
      don't block it) decides whether it's **Correct** or **Not quite**.
    - A correct guess reveals your card and scores points: with N players, the first correct
      guess of the round earns **N-1**, the next N-2, and so on down to 0. A wrong guess just
      passes the turn, and you keep playing.
-   - If the active player has gone away, anyone can skip their turn.
+   - If the active player has gone away, anyone can skip their turn. The host can skip anyone's
+     turn at any time, even during a vote (after an "are you sure").
+   - The host can remove any player, even mid-round (after an "are you sure"). The card a
+     removed (or departed) player wrote stays in play for whoever has to guess it. Leaving
+     mid-round takes you out of the round for good, so the app asks first.
    - When it becomes your turn, or a guess needs your vote, your phone beeps and vibrates and
      a background tab shows it in its title. **Alerts** switches the sound and vibration off.
      (Browsers only allow the sound after you have tapped or clicked somewhere on the page.)
-   - **My notes**: jot down what you've learned about your card ("Am I an animal?" Yes).
-     Only you see them, on your own device, and they start over each round.
+   - **My notes**: jot down what you've learned about your card ("Am I an animal?" Yes), with
+     the answer in one tap. Notes are grouped by answer (Yes, No, Not sure, not answered yet);
+     tap a note to move it up or down in its group, edit it or remove it. Only you see them, on
+     your own device, and they start over each round.
    - The app counts each player's turns this round. Solved cards show how many it took
      ("Solved in 4 turns").
 5. **Round over.** The round ends when everyone has guessed theirs, or early if a majority votes
@@ -132,17 +149,19 @@ page connect to a `wss://` bridge. Build with `VITE_BRIDGE_URL=wss://your-bridge
 - Each room is one bridge topic, `who-am-i/<CODE>`. Nothing else on the bridge is touched.
 - The bridge only relays live messages: it has no history, presence or auth. Because of
   that, **one player's tab is the relay** and holds the state: the creator's, to begin with.
-  It has no extra say in the game: it applies the same rules to its own clicks as to
-  everyone else's.
+  That player is also the host: the reducer lets the host skip any turn and remove any player,
+  and otherwise it applies the same rules to its own clicks as to everyone else's.
   Players send small messages (`hello`, `submit`, `deal`, `guess`, `vote`, `pass`,
   `endVote`, …). The relay runs them through a pure reducer
   (`src/game/reducer.ts`) and broadcasts a full state snapshot after every change and every
   10 s. Players keep saying `hello` until a snapshot lists them, because the
   bridge drops anything sent before the relay subscribed.
 - A player that hasn't been heard from for 75 s shows as _away_ (hidden tabs only get timers about once a minute, so a tab also checks in as soon as it is visible again). Players also see a
-  warning when the relay tab goes quiet. Anyone can remove a player who is away (in the
-  lobby or while writing) or watching. Removed players stay out unless they join again as a
-  new player.
+  warning when the relay tab goes quiet. Anyone can remove a player who is watching, or who
+  went away before the cards were dealt; the host (the relay) can remove anyone. Removed players stay out unless they join again as a new
+  player. A player removed, or leaving, while the cards are out leaves the card they wrote
+  behind (`departed` in the state) until the next round, so nobody loses the card they are
+  guessing.
 - **The relay moves on when its tab does.** If the relay player leaves, their tab hands the
   room to the next player who is around (in seat order; spectators never relay). If the relay
   tab goes quiet instead (crashed, closed, laptop asleep), the first player in line takes

@@ -3,7 +3,18 @@
  * The few icons the game needs, drawn in one stroke style. Always decorative: put the
  * meaning in text (or an aria-label) next to it.
  */
-export type IconName = 'mic' | 'relay' | 'bell' | 'bell-off' | 'screen' | 'check' | 'x'
+export type IconName =
+  | 'mic'
+  | 'relay'
+  | 'bell'
+  | 'bell-off'
+  | 'screen'
+  | 'check'
+  | 'x'
+  | 'arrow-up'
+  | 'arrow-down'
+  | 'chevron-up'
+  | 'chevron-down'
 
 defineProps<{ name: IconName }>()
 </script>
@@ -40,6 +51,10 @@ defineProps<{ name: IconName }>()
     </template>
     <path v-else-if="name === 'check'" d="M5 12.5l4.5 4.5L19 7" />
     <path v-else-if="name === 'x'" d="M6.5 6.5l11 11M17.5 6.5l-11 11" />
+    <path v-else-if="name === 'arrow-up'" d="M12 19V5M6 11l6-6 6 6" />
+    <path v-else-if="name === 'arrow-down'" d="M12 5v14M6 13l6 6 6-6" />
+    <path v-else-if="name === 'chevron-up'" d="M6 15l6-6 6 6" />
+    <path v-else-if="name === 'chevron-down'" d="M6 9l6 6 6-6" />
   </svg>
 </template>
 

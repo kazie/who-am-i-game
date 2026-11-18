@@ -104,7 +104,7 @@ describe('lobby and writing', () => {
     expect(identityOf(p, 'h')?.author.name).toBe('Bob')
   })
 
-  it('lets players leave before the deal and between rounds, but not mid-round', () => {
+  it('lets players leave in any phase', () => {
     const writing = run(
       room(),
       { type: 'hello', from: 'b', name: 'Bob' },
@@ -112,14 +112,24 @@ describe('lobby and writing', () => {
       { type: 'startWriting', from: 'h' },
     )
     expect(run(writing, { type: 'leave', from: 'c' }).players.map((p) => p.id)).toEqual(['h', 'b'])
-    const s = playing()
-    expect(run(s, { type: 'leave', from: 'c' })).toBe(s)
     const between = run(
-      s,
+      playing(),
       { type: 'endVote', from: 'h', end: true },
       { type: 'endVote', from: 'b', end: true },
     )
     expect(run(between, { type: 'leave', from: 'c' }).players).toHaveLength(2)
+  })
+
+  it('mid-round, the card a leaving player wrote stays in play', () => {
+    // h guesses Bob's Dog, b guesses Chen's Owl, c guesses h's Cat.
+    const s = run(playing(), { type: 'leave', from: 'b' })
+    expect(s.players.map((p) => p.id)).toEqual(['h', 'c'])
+    expect(identityOf(s, 'h')).toEqual({
+      entry: { label: 'Dog' },
+      author: { id: 'b', name: 'Bob' },
+    })
+    expect(identityOf(s, 'b')).toBeUndefined()
+    expect(s.kicked).toEqual([]) // left, not removed: they may join again
   })
 
   it('lets newcomers write while entries are open', () => {
@@ -258,6 +268,48 @@ describe('turns and guess votes', () => {
     const later = now + AWAY_AFTER_MS + 1
     const away = reduce(s, { type: 'pass', from: 'b' }, at(later))
     expect(away.turn).toBe('b')
+  })
+
+  it("the host moves anyone's turn on, even mid-guess; nobody else can", () => {
+    let s = run(playing(), { type: 'pass', from: 'h' }) // b's turn
+    expect(run(s, { type: 'pass', from: 'c' })).toBe(s)
+    const skipped = run(s, { type: 'pass', from: 'h' })
+    expect(skipped.turn).toBe('c')
+    expect(turnsOf(skipped, 'b')).toBe(1) // b was around: it counts
+    s = run(s, { type: 'guess', from: 'b' })
+    const mid = run(s, { type: 'pass', from: 'h' })
+    expect(mid.guess).toBeUndefined()
+    expect(mid.turn).toBe('c')
+    // The host's own guess is withdrawn, not passed.
+    const own = run(playing(), { type: 'guess', from: 'h' })
+    expect(run(own, { type: 'pass', from: 'h' })).toBe(own)
+  })
+
+  it("the host skipping an away player's turn doesn't count it", () => {
+    let s = run(playing(), { type: 'pass', from: 'h' }) // b's turn
+    const later = now + AWAY_AFTER_MS + 1
+    s = reduce(s, { type: 'ping', from: 'h' }, at(later))
+    s = reduce(s, { type: 'ping', from: 'c' }, at(later))
+    s = reduce(s, { type: 'pass', from: 'h' }, at(later))
+    expect(s.turn).toBe('c')
+    expect(turnsOf(s, 'b')).toBe(0)
+  })
+
+  it('never hands the turn straight back when everyone else is away', () => {
+    const later = now + AWAY_AFTER_MS + 1
+    const s = reduce(playing(), { type: 'ping', from: 'h' }, at(later)) // b and c are away
+    expect(reduce(s, { type: 'pass', from: 'h' }, at(later)).turn).toBe('b') // the next seat
+  })
+
+  it('turns pass over players who are away, unless everyone left is away', () => {
+    const later = now + AWAY_AFTER_MS + 1
+    let s = reduce(playing(), { type: 'ping', from: 'h' }, at(later)) // b and c are away
+    s = reduce(s, { type: 'ping', from: 'c' }, at(later)) // only b is away
+    s = reduce(s, { type: 'pass', from: 'h' }, at(later))
+    expect(s.turn).toBe('c')
+    // Everyone is away now, so c's pass falls back to the next in line.
+    s = reduce(s, { type: 'pass', from: 'c' }, at(later + AWAY_AFTER_MS + 1))
+    expect(s.turn).toBe('h')
   })
 })
 
@@ -452,22 +504,134 @@ describe('shared controls', () => {
     expect(s.phase).toBe('finished')
   })
 
-  it('anyone can remove players who went away or spectators, but nobody else', () => {
-    const s = withBob()
-    expect(run(s, { type: 'kick', from: 'h', playerId: 'b' })).toBe(s) // Bob is here
+  it('anyone can remove players who went away before the deal; the host anyone', () => {
+    const s = run(withBob(), { type: 'hello', from: 'c', name: 'Chen' })
+    expect(run(s, { type: 'kick', from: 'b', playerId: 'c' })).toBe(s) // Chen is here
     const later = now + AWAY_AFTER_MS + 1
-    const s2 = reduce(s, { type: 'ping', from: 'h' }, at(later))
-    const kicked = reduce(s2, { type: 'kick', from: 'h', playerId: 'b' }, at(later))
-    expect(kicked.players.map((p) => p.id)).toEqual(['h'])
-    expect(kicked.kicked).toEqual(['b'])
+    const s2 = reduce(s, { type: 'ping', from: 'b' }, at(later))
+    const kicked = reduce(s2, { type: 'kick', from: 'b', playerId: 'c' }, at(later))
+    expect(kicked.players.map((p) => p.id)).toEqual(['h', 'b'])
+    expect(kicked.kicked).toEqual(['c'])
     expect(reduce(s2, { type: 'kick', from: 'b', playerId: 'h' }, at(later))).toBe(s2) // the relay stays
+    // The host needs no reason.
+    expect(run(s, { type: 'kick', from: 'h', playerId: 'b' }).players.map((p) => p.id)).toEqual([
+      'h',
+      'c',
+    ])
+    expect(run(s, { type: 'kick', from: 'h', playerId: 'h' })).toBe(s)
   })
 
-  it('does not remove assigned players mid-game', () => {
-    const s = playing()
-    expect(
-      reduce(s, { type: 'kick', from: 'h', playerId: 'b' }, at(now + 10 * AWAY_AFTER_MS)),
-    ).toBe(s)
+  it('removes players mid-round and keeps the card they wrote in play', () => {
+    let s = run(playing(), { type: 'pass', from: 'h' }) // b's turn
+    s = run(s, { type: 'kick', from: 'h', playerId: 'b' })
+    expect(s.players.map((p) => p.id)).toEqual(['h', 'c'])
+    expect(s.kicked).toEqual(['b'])
+    expect(s.turn).toBe('c') // b's turn passed on, uncounted
+    expect(turnsOf(s, 'b')).toBe(0)
+    expect(identityOf(s, 'h')?.entry.label).toBe('Dog')
+    expect(identityOf(s, 'h')?.author.name).toBe('Bob')
+    expect(s.departed).toEqual({ b: { name: 'Bob', entry: { label: 'Dog' } } })
+  })
+
+  it('mid-round, only the host removes a player who is away', () => {
+    // Turns pass over them anyway, and a phone that slept a minute must not cost the game.
+    const later = now + AWAY_AFTER_MS + 1
+    const s = reduce(playing(), { type: 'ping', from: 'c' }, at(later)) // b is away
+    expect(reduce(s, { type: 'kick', from: 'c', playerId: 'b' }, at(later))).toBe(s)
+    const byHost = reduce(s, { type: 'kick', from: 'h', playerId: 'b' }, at(later))
+    expect(byHost.players.map((p) => p.id)).toEqual(['h', 'c'])
+  })
+
+  it('removing the player whose turn it is passes it to the next seat, not the first', () => {
+    // Four players; c has the turn and is the only one around.
+    let s = run(
+      room(),
+      { type: 'hello', from: 'b', name: 'Bob' },
+      { type: 'hello', from: 'c', name: 'Chen' },
+      { type: 'hello', from: 'd', name: 'Dana' },
+      { type: 'startWriting', from: 'b' },
+      ...['h', 'b', 'c', 'd'].map((id): ClientMessage => ({
+        type: 'submit',
+        from: id,
+        entry: { label: id },
+      })),
+      { type: 'deal', from: 'c' },
+    )
+    s = run(s, { type: 'pass', from: 'h' }, { type: 'pass', from: 'b' })
+    expect(s.turn).toBe('c')
+    const later = now + AWAY_AFTER_MS + 1
+    s = reduce(s, { type: 'ping', from: 'c' }, at(later)) // h, b and d are away
+    s = reduce(s, { type: 'leave', from: 'c' }, at(later))
+    expect(s.turn).toBe('d') // everyone is away: the next seat, and c never gets it back
+    expect(s.players.map((p) => p.id)).toEqual(['h', 'b', 'd'])
+  })
+
+  it('removing the guesser drops the guess; removing a voter can decide it', () => {
+    let s = run(playing(), { type: 'guess', from: 'h' }, { type: 'vote', from: 'b', correct: true })
+    // c's vote is missing: without c, b's vote is a majority.
+    const solved = run(s, { type: 'kick', from: 'h', playerId: 'c' })
+    expect(solved.players[0]!.solved).toBe(true)
+    expect(solved.guess).toBeUndefined()
+    // The relay leaving while guessing hands the room on and drops the guess.
+    s = run(playing(), { type: 'guess', from: 'h' })
+    const gone = run(s, { type: 'leave', from: 'h' })
+    expect(gone.hostId).toBe('b')
+    expect(gone.guess).toBeUndefined()
+    expect(gone.turn).toBe('b')
+  })
+
+  it('removing the last player still guessing ends the round', () => {
+    const solve = (s: GameState, id: string, voters: string[]) =>
+      run(
+        s,
+        { type: 'guess', from: id },
+        ...voters.map((v): ClientMessage => ({ type: 'vote', from: v, correct: true })),
+      )
+    let s = solve(playing(), 'h', ['b', 'c'])
+    s = solve(s, 'b', ['h', 'c'])
+    expect(s.turn).toBe('c')
+    s = run(s, { type: 'kick', from: 'h', playerId: 'c' })
+    expect(s.phase).toBe('finished')
+    // Its card stays on the table at the end of the round, and the next round forgets it.
+    expect(identityOf(s, 'b')?.entry.label).toBe('Owl')
+    const next = run(s, { type: 'newRound', from: 'h', theme: 'Birds' })
+    expect(next.departed).toBeUndefined()
+  })
+
+  it('a solver who leaves still counts, so the next solver gets the next lower points', () => {
+    let s = run(playing(), { type: 'hello', from: 'd', name: 'Dana' })
+    // Dana joined after the deal (watching); make a 3-player round: h solves first, 2 points.
+    s = run(
+      s,
+      { type: 'guess', from: 'h' },
+      { type: 'vote', from: 'b', correct: true },
+      { type: 'vote', from: 'c', correct: true },
+    )
+    expect(s.roundScores).toEqual({ h: 2 })
+    s = run(s, { type: 'leave', from: 'h' }) // b is the host now
+    s = run(s, { type: 'guess', from: 'b' }, { type: 'vote', from: 'c', correct: true })
+    expect(s.roundScores.b).toBe(1) // 3 dealt, 1 solved before: second place, not first
+  })
+
+  it('points never go negative after players are removed', () => {
+    let s = run(
+      playing(),
+      { type: 'guess', from: 'h' },
+      { type: 'vote', from: 'b', correct: true },
+      { type: 'vote', from: 'c', correct: true },
+    )
+    expect(s.roundScores).toEqual({ h: 2 })
+    s = run(
+      s,
+      { type: 'guess', from: 'b' },
+      { type: 'vote', from: 'h', correct: true },
+      { type: 'vote', from: 'c', correct: true },
+    )
+    expect(s.roundScores).toEqual({ h: 2, b: 1 })
+    s = run(s, { type: 'kick', from: 'h', playerId: 'b' })
+    // h (host) and c are left; c guesses right: 3 dealt, 2 solved before -> 0, not -1.
+    s = run(s, { type: 'guess', from: 'c' }, { type: 'vote', from: 'h', correct: true })
+    expect(s.roundScores.c).toBe(0)
   })
 
   it('keeps removed players out when they say hello again', () => {
@@ -525,10 +689,11 @@ describe('handing the relay on', () => {
     expect(s.version).toBe(before.version + 1)
   })
 
-  it('mid-round the relay hands the room on but keeps its seat (its card is dealt)', () => {
+  it('mid-round the relay hands the room on, and its card stays in play', () => {
     const s = run(playing(), { type: 'leave', from: 'h' })
     expect(s.hostId).toBe('b')
-    expect(s.players.map((p) => p.id)).toEqual(['h', 'b', 'c'])
+    expect(s.players.map((p) => p.id)).toEqual(['b', 'c'])
+    expect(identityOf(s, 'c')?.entry.label).toBe('Cat')
   })
 
   it('skips spectators and players who are away, in seat order', () => {
@@ -611,6 +776,12 @@ describe('isClientMessage', () => {
     expect(bad({ endVotes: [1] })).toBe(false)
     expect(bad({ players: [{ id: 'h', name: 'H' }] })).toBe(false)
     expect(bad({ turnsTaken: { h: 'two' } })).toBe(false)
+    // Cards of removed players are rendered too: same checks as any entry.
+    expect(bad({ departed: { b: { name: 'Bob', entry: { label: 'Dog' } } } })).toBe(true)
+    expect(bad({ departed: { b: { name: 'Bob' } } })).toBe(false)
+    expect(
+      bad({ departed: { b: { name: 'Bob', entry: { label: 'D', sourceUrl: 'javascript:x' } } } }),
+    ).toBe(false)
     // Snapshots from before turns were counted have no turnsTaken at all.
     const { turnsTaken: _turns, ...older } = good.state
     expect(isStateMessage({ ...good, state: older })).toBe(true)

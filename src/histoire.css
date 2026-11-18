@@ -10,3 +10,13 @@
 .histoire-story-variant-grid-item [data-test-id='sandbox-render'] {
   background-color: var(--bg) !important;
 }
+
+/*
+ * In a preview's own window, Histoire wraps the story in a box with `overflow: auto` that never
+ * scrolls itself, which stops `position: sticky` (the turn bar, the notes dock) from sticking
+ * as the window scrolls. The game has no such box, so let the preview show it as it is.
+ * Grid items keep their box: they lay several stories side by side.
+ */
+.__histoire-render-story:not(.histoire-story-variant-grid-item .__histoire-render-story) {
+  overflow: visible !important;
+}

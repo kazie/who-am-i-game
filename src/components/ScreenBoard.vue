@@ -5,7 +5,7 @@ import {
   activePlayers,
   beforeDeal,
   finishTally,
-  identityOf,
+  cardOf,
   playerById,
   roundEnded,
   tally,
@@ -45,11 +45,10 @@ const winnerCount = computed(() => winners(s.value).length)
 // Unsolved cards stay off this screen until the round is over: entry is only set if shown.
 const cards = computed(() =>
   players.value.map((p) => {
-    const identity = p.solved || roundEnded(s.value) ? identityOf(s.value, p.id) : undefined
+    const shown = p.solved || roundEnded(s.value)
     return {
       player: p,
-      entry: identity?.entry,
-      authorName: s.value.pack ? undefined : identity?.author.name,
+      ...(shown ? cardOf(s.value, p.id) : {}),
       turn: s.value.phase === 'playing' && s.value.turn === p.id,
       guessing: s.value.guess?.playerId === p.id,
       turns: turnsOf(s.value, p.id),
@@ -101,7 +100,8 @@ const cards = computed(() =>
               <AppIcon name="mic" class="mic" /> {{ turnPlayer.name }}'s turn
             </h2>
             <p class="muted">
-              Ask a yes/no question, or make a guess. ·
+              {{ turnPlayer.name }} asks a yes/no question about their own card. Everyone else
+              answers yes or no. ·
               {{ turnCountLabel(s, turnPlayer.id) }}
             </p>
           </div>

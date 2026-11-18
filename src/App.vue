@@ -1,5 +1,11 @@
 <template>
-  <main class="page" :class="{ wide: $route.name === 'screen' || $route.name === 'example' }">
+  <main
+    class="page"
+    :class="{
+      wide: $route.name === 'screen' || $route.name === 'example',
+      'room-page': $route.name === 'room',
+    }"
+  >
     <RouterLink to="/" class="logo">
       <!-- A tilted index card with a question mark on it. -->
       <svg class="mark" viewBox="0 0 40 30" aria-hidden="true" focusable="false">
@@ -19,6 +25,10 @@
 <style scoped>
 .wide {
   max-width: 1600px;
+}
+/* Once the cards are out: room for four across on a computer, beside your own card and notes. */
+.room-page:has(.cards-out) {
+  max-width: 1200px;
 }
 .logo {
   display: inline-flex;

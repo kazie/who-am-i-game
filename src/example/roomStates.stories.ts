@@ -5,6 +5,7 @@ import type { GameState } from '../game/protocol'
 import { memoryStorage } from '../game/storage'
 import type { Alerts } from '../game/useAlerts'
 import { useNotes, type Notes } from '../game/useNotes'
+import { useRules, type Rules } from '../game/useRules'
 import type { Room } from '../game/useRoom'
 import { staticRoom, type StaticRoomOptions } from './staticRoom'
 
@@ -34,10 +35,17 @@ myNotes.add('Do I have stripes?')
 myNotes.setAnswer(myNotes.notes.value[0]!.id, 'yes')
 myNotes.setAnswer(myNotes.notes.value[1]!.id, 'no')
 
+/**
+ * A first-time player: the others' cards stay covered until "Got it". Shared by the stories
+ * that use it, so once tapped it stays tapped until the page is reloaded.
+ */
+export const firstGame = useRules(memoryStorage())
+
 /** Extras that only real rooms have. */
 interface Extras {
   alerts?: Alerts
   notes?: Notes
+  rules?: Rules
 }
 
 /** A room frozen at `state`, seen by `meId`. The Source panel shows each variant as a call. */
@@ -54,6 +62,7 @@ const names = new Map<unknown, string>(
     relayOnChen,
     alertsSwitch,
     myNotes,
+    firstGame,
   })
     .filter(([, value]) => typeof value === 'object' && value !== null)
     .map(([name, value]) => [value, name]),
@@ -86,6 +95,7 @@ export function variant(
   const attrs = [`:room="at(${args.map(literal).join(', ')})"`]
   if (extras.alerts) attrs.push(`:alerts="${literal(extras.alerts)}"`)
   if (extras.notes) attrs.push(`:notes="${literal(extras.notes)}"`)
+  if (extras.rules) attrs.push(`:rules="${literal(extras.rules)}"`)
   return {
     title,
     props: { room: at(state, meId, opts), ...extras },
