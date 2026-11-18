@@ -15,6 +15,7 @@ identity or a player's slot, it is an `IndexCard.vue` (its look is `.index-card`
 - The presentation screen: unsolved cards (`???`, "still guessing"), and the small name cards
   in the lobby and while writing.
 - `NotesPanel.vue`: your notes are written on a card.
+- `RulesCard.vue`: "How to play" is written on a card.
 - The logo is a card with a `?`.
 
 Cards lie a little crooked (`--tilt` from `components/tilt.ts`, stable per player). Only
@@ -24,6 +25,19 @@ accent outline.
 Everything else is flat. A page section is a heading under a 2px ink rule (`.panel`), not
 a box. The only boxed area is `.callout`, for what needs you right now (whose turn it is,
 the vote). Lists such as Points and Players are ledgers with dashed rules (`.ledger`).
+
+## What stays put while playing
+
+Players look around the table a lot, so three things never scroll away during a round:
+
+- **Whose turn it is**: the turn `.callout` sticks to the top of the screen, and names the
+  asking player's card, so you can answer without looking for it.
+- **Your card and your notes** (`MyCard.vue`): on a wide screen, a column beside the cards
+  that stays put. On a phone, a strip along the bottom edge, like the edge of the table in
+  front of you, under a 2px ink rule; a tap pulls it up.
+- The others' cards come under the heading "Their cards: keep them secret". The words
+  "secret", "never say" and "for someone else" do real work: a first-time player once read
+  the cards out loud. Keep them when you reword things.
 
 ## Two typefaces, one job each
 
@@ -50,8 +64,8 @@ Re-check the contrast when you change a token.
 
 ## Don't
 
-- Emoji as icons. Use words, or the few drawn icons in `AppIcon.vue` (always with text or
-  an `aria-label` next to them). The only emoji left are in the background-tab title
+- Emoji as icons. Use words, or the few drawn icons in `AppIcon.vue` (mic, relay, bell,
+  screen, check, x, arrows and chevrons; always with text or an `aria-label` next to them). The only emoji left are in the background-tab title
   (`useAlerts.ts`), where they help you spot the tab.
 - Decorative gradients, glows, coloured box-shadows, frosted glass. The card rules are the
   only gradients, and they draw paper lines.

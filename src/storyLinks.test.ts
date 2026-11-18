@@ -28,12 +28,13 @@ describe('moved story links', () => {
     expect(movedStoryLink(link('RoomScreen.playing', 3))).toBeUndefined()
   })
 
-  it('moves each of the 27 old variants, and the new files hold exactly those', () => {
+  it('moves each of the 27 old variants, and the new files start with those', () => {
     const olds = Object.values(SPLIT_INTO).flat()
     expect([...olds].sort((a, b) => a - b)).toEqual([...Array(27).keys()])
+    // Links are numbered by position, so variants added later only go after the moved ones.
     for (const [name, list] of Object.entries(SPLIT_INTO)) {
       const source = readFileSync(join(SRC, 'components', `${name}.story.vue`), 'utf8')
-      expect(source.match(/\bvariant\(/g), name).toHaveLength(list.length)
+      expect(source.match(/\bvariant\(/g)?.length, name).toBeGreaterThanOrEqual(list.length)
     }
   })
 })

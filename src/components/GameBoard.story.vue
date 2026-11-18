@@ -6,13 +6,13 @@ import GameBoard from './GameBoard.vue'
 <template>
   <Story title="Room/GameBoard">
     <Variant title="Playing, as Alice">
-      <GameBoard :state="playingState" me-id="p1" />
+      <GameBoard :state="playingState" me-id="p1" mine-apart />
     </Variant>
     <Variant title="Playing, as Bob (solved)">
-      <GameBoard :state="playingState" me-id="p2" />
+      <GameBoard :state="playingState" me-id="p2" mine-apart />
     </Variant>
     <Variant title="Chen is guessing">
-      <GameBoard :state="votingState" me-id="p1" />
+      <GameBoard :state="votingState" me-id="p1" mine-apart />
     </Variant>
     <Variant title="Spectator">
       <GameBoard :state="playingState" me-id="p5" />

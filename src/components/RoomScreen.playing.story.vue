@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { alertsSwitch, myNotes, variant } from '../example/roomStates.stories'
+import { alertsSwitch, firstGame, myNotes, variant } from '../example/roomStates.stories'
 import { finishedState, overState, packPlayingState, playingState, votingState } from '../fixtures'
 import RoomScreen from './RoomScreen.vue'
 
@@ -8,7 +8,7 @@ const variants = [
   variant('My turn', playingState, 'p3'),
   variant('My turn, with the alerts switch', playingState, 'p3', {}, { alerts: alertsSwitch }),
   variant('My turn, with my notes', playingState, 'p3', {}, { notes: myNotes }),
-  variant("Someone else's turn", playingState, 'p1'),
+  variant("Someone else's turn, as the host", playingState, 'p1', {}, { notes: myNotes }),
   variant('A pack round', packPlayingState, 'p2'),
   variant("Voting on Chen's guess", votingState, 'p2'),
   variant('I am guessing', votingState, 'p3'),
@@ -16,6 +16,9 @@ const variants = [
   variant('Watching (joined after the deal)', playingState, 'p5'),
   variant('Round over, finish vote open', finishedState, 'p1'),
   variant('Game over', overState, 'p2'),
+  // New variants go last: links to the ones above are numbered by position.
+  variant('First game: the cards are covered', playingState, 'p1', {}, { rules: firstGame }),
+  variant("Someone else's turn, not the host", playingState, 'p4', {}, { notes: myNotes }),
 ]
 </script>
 

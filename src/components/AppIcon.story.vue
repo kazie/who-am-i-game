@@ -1,7 +1,19 @@
 <script setup lang="ts">
 import AppIcon, { type IconName } from './AppIcon.vue'
 
-const names: IconName[] = ['mic', 'relay', 'bell', 'bell-off', 'screen', 'check', 'x']
+const names: IconName[] = [
+  'mic',
+  'relay',
+  'bell',
+  'bell-off',
+  'screen',
+  'check',
+  'x',
+  'arrow-up',
+  'arrow-down',
+  'chevron-up',
+  'chevron-down',
+]
 </script>
 
 <template>

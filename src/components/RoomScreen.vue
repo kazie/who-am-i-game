@@ -4,18 +4,20 @@ import { useRouter } from 'vue-router'
 import { roomLink } from '../game/links'
 import { useMediaQuery } from '../game/useMediaQuery'
 import { beforeDeal, nextRelays, playerById, roundsLabel } from '../game/reducer'
-import type { Alerts } from '../game/useAlerts'
+import { attentionFor, type Alerts } from '../game/useAlerts'
 import type { Notes } from '../game/useNotes'
 import type { Room } from '../game/useRoom'
+import type { Rules } from '../game/useRules'
 import { resolveImageUrl } from '../game/wikipedia'
 import EntryForm from './EntryForm.vue'
 import GameBoard from './GameBoard.vue'
 import GameControls from './GameControls.vue'
 import AppIcon from './AppIcon.vue'
 import JoinForm from './JoinForm.vue'
-import NotesPanel from './NotesPanel.vue'
+import MyCard from './MyCard.vue'
 import PlayerList from './PlayerList.vue'
 import RoomStatusBanners from './RoomStatusBanners.vue'
+import RulesCard from './RulesCard.vue'
 import ScoreBoard from './ScoreBoard.vue'
 import TurnPanel from './TurnPanel.vue'
 
@@ -28,8 +30,18 @@ const props = withDefaults(
     alerts?: Alerts
     /** This player's private notes; only real rooms have them. */
     notes?: Notes
+    /**
+     * Whether this browser has read why cards are secret; until then the others' cards are
+     * covered. Only real rooms have it: the example game and stories show the cards.
+     */
+    rules?: Rules
   }>(),
-  { resolveImage: (url: string) => resolveImageUrl(url), alerts: undefined, notes: undefined },
+  {
+    resolveImage: (url: string) => resolveImageUrl(url),
+    alerts: undefined,
+    notes: undefined,
+    rules: undefined,
+  },
 )
 const emit = defineEmits<{ leave: [] }>()
 
@@ -79,25 +91,83 @@ const confirmingLeave = ref(false)
 
 // On a phone everything is one column (this is the layout's only breakpoint), and the
 // button that moves the game on goes right under the current phase, in the DOM too, so
-// reading and tab order match what you see. While playing it's only "vote to end early",
-// which can wait below the cards. The controls are moved there, not rebuilt, so a
-// half-typed next theme survives turning the phone.
+// reading and tab order match what you see. While playing, the table comes first: whose
+// turn it is (stuck to the top), the cards, then the controls ("vote to end early"), points
+// and players. Your own card and notes go beside the cards on a wide screen, or in a dock
+// at the bottom of a phone's. Everything is moved there, not rebuilt, so a half-typed theme
+// or note survives turning the phone.
 const narrow = useMediaQuery('(max-width: 720px)')
 const afterPhase = useTemplateRef<HTMLElement>('afterPhase')
 const afterBoard = useTemplateRef<HTMLElement>('afterBoard')
-const controlsTarget = computed(() =>
-  !narrow.value ? null : state.value?.phase === 'playing' ? afterBoard.value : afterPhase.value,
+const afterControls = useTemplateRef<HTMLElement>('afterControls')
+const dock = useTemplateRef<HTMLElement>('dock')
+const playing = computed(() => state.value?.phase === 'playing')
+/** You hold a card this round (not watching). */
+const inRound = computed(() => playing.value && me.value !== undefined && !me.value.spectator)
+/** A wide screen while you play: the side column is yours, everything else goes under the cards. */
+const besideCards = computed(() => inRound.value && !narrow.value)
+/** Where each moved block goes; null keeps it in the side column. */
+const placement = computed(() => {
+  if (narrow.value)
+    return {
+      controls: playing.value ? afterBoard.value : afterPhase.value,
+      ledgers: null,
+      myCard: dock.value,
+    }
+  const under = besideCards.value
+  return {
+    controls: under ? afterBoard.value : null,
+    ledgers: under ? afterControls.value : null,
+    myCard: null,
+  }
+})
+/**
+ * Until this browser has read why the cards are secret, a short note takes the place of
+ * the turn bar and the cards: nothing on screen names someone else's card.
+ */
+const covered = computed(
+  () => playing.value && props.rules !== undefined && !props.rules.seen.value,
 )
+/** While covered, the game may already be waiting for this player: say so on the note. */
+const waitingOnMe = computed(() =>
+  covered.value ? attentionFor(state.value, me.value?.id) : undefined,
+)
+/** "How to play" on demand: the lobby always shows it, and the note above includes it. */
+const rulesOnDemand = computed(() => state.value?.phase !== 'lobby' && !covered.value)
+const showRules = ref(false)
 
 function leave() {
   room.leave()
   emit('leave')
 }
 
-// The relay's tab holds the game. Leaving hands it on, but with nobody around to take over
-// it ends the game for everyone, so ask first.
+/**
+ * Why leaving needs a second tap, if it does. The relay's tab holds the game: leaving hands
+ * it on, but with nobody around to take over it ends the game for everyone. And mid-round,
+ * leaving gives up your card for the rest of the round.
+ */
+const leaveWarning = computed(() => {
+  if (room.isRelay.value && !successor.value)
+    return {
+      text: 'Nobody else is around to keep the room running. Leaving ends the game for everyone.',
+      action: 'Close the room',
+    }
+  if (inRound.value)
+    return {
+      text: "Leaving now takes you out of this round: your turns stop, and you can't come back into it.",
+      action: 'Leave anyway',
+    }
+  return undefined
+})
+
+// A question that no longer applies (someone arrived who can keep the room running, the
+// round ended) is dropped, so it never comes back by itself.
+watch(leaveWarning, (w) => {
+  if (!w) confirmingLeave.value = false
+})
+
 function leaveRoom() {
-  if (room.isRelay.value && !successor.value && !confirmingLeave.value) {
+  if (leaveWarning.value && !confirmingLeave.value) {
     confirmingLeave.value = true
     return
   }
@@ -107,7 +177,7 @@ function leaveRoom() {
 
 const PHASE_TITLES = {
   lobby: 'Waiting for players',
-  writing: 'Everyone writes one',
+  writing: 'Writing the cards',
   playing: 'Who am I?',
   finished: 'Round over',
   over: 'Game over',
@@ -152,7 +222,7 @@ const PHASE_TITLES = {
     </div>
   </div>
 
-  <div v-else class="stack room">
+  <div v-else class="stack room" :class="{ 'cards-out': !beforeDeal(state) }">
     <header class="room-header">
       <div>
         <p class="muted small">Round {{ state.round }} · Theme</p>
@@ -184,13 +254,22 @@ const PHASE_TITLES = {
             <AppIcon :name="alerts.muted.value ? 'bell-off' : 'bell'" />
             {{ alerts.muted.value ? 'Alerts off' : 'Alerts on' }}
           </button>
+          <button
+            v-if="rulesOnDemand"
+            class="chip"
+            :aria-expanded="showRules"
+            @click="showRules = !showRules"
+          >
+            How to play
+          </button>
         </div>
       </div>
     </header>
 
     <p v-if="room.isRelay.value" class="banner small">
-      <AppIcon name="relay" /> Your tab keeps this room running. Please keep it open.
-      <template v-if="successor">If you leave, {{ successor.name }}'s tab takes over.</template>
+      <AppIcon name="relay" /> You're the host. Your tab keeps this room running, so please keep it
+      open. If someone gets stuck or drops out, you can skip their turn or remove them.
+      <template v-if="successor">If you leave, {{ successor.name }} takes over as host.</template>
       <template v-else>Nobody else could take over right now.</template>
     </p>
     <RoomStatusBanners
@@ -199,21 +278,53 @@ const PHASE_TITLES = {
       :relay-name="relayName"
       :relay-changed="room.relayChanged.value && !room.isRelay.value"
     />
+    <RulesCard v-if="showRules && rulesOnDemand" :pack="!!state.pack" />
 
-    <div class="layout" :class="{ narrow }">
+    <div class="layout" :class="{ narrow, 'beside-cards': besideCards }">
       <div class="main stack">
-        <section class="phase stack">
+        <RulesCard v-if="covered && rules" title="Before you look" :pack="!!state.pack">
+          <p v-if="waitingOnMe" class="banner warn" role="status">
+            {{
+              waitingOnMe === 'turn'
+                ? "It's your turn! Read this, then tap the button below."
+                : 'The others need your vote. Read this, then tap the button below.'
+            }}
+          </p>
+          <p>
+            <strong>The cards on the next screen belong to the other players.</strong> Each of them
+            is trying to work out their own, so never read a card out loud, and never name it in a
+            question.
+          </p>
+          <button class="primary" @click="rules.accept()">Got it, show the cards</button>
+        </RulesCard>
+
+        <!-- Whose turn it is stays stuck to the top of the screen while you look at the cards. -->
+        <TurnPanel
+          v-else-if="playing"
+          class="turn-bar"
+          :state="state"
+          :me-id="me.id"
+          @guess="room.guess"
+          @withdraw="room.withdrawGuess"
+          @vote="room.vote"
+          @pass="room.pass"
+        />
+
+        <section v-else class="phase stack">
           <h2>{{ PHASE_TITLES[state.phase] }}</h2>
 
-          <p v-if="state.phase === 'lobby'" class="muted">
-            <template v-if="state.pack"
-              >This round uses ready-made cards. When everyone has joined, anyone can hand them
-              out.</template
-            >
-            <template v-else
-              >When everyone has joined, anyone can start the writing round.</template
-            >
-          </p>
+          <template v-if="state.phase === 'lobby'">
+            <p class="muted">
+              <template v-if="state.pack"
+                >This round uses ready-made cards. When everyone has joined, anyone can hand them
+                out.</template
+              >
+              <template v-else
+                >When everyone has joined, anyone can start the writing round.</template
+              >
+            </p>
+            <RulesCard :pack="!!state.pack" />
+          </template>
 
           <EntryForm
             v-else-if="state.phase === 'writing'"
@@ -222,37 +333,26 @@ const PHASE_TITLES = {
             :resolve="resolveImage"
             @submit="room.submit"
           />
-
-          <template v-else-if="state.phase === 'playing'">
-            <TurnPanel
-              :state="state"
-              :me-id="me.id"
-              @guess="room.guess"
-              @withdraw="room.withdrawGuess"
-              @vote="room.vote"
-              @pass="room.pass"
-            />
-            <NotesPanel v-if="notes && !me.solved && !me.spectator" :notes="notes" />
-            <p v-if="me.solved" class="banner">
-              You got it! +{{ state.roundScores[me.id] ?? 0 }} points. Keep answering and voting for
-              the others.
-            </p>
-            <p v-else class="muted small">
-              Everyone can see your card except you. On your turn, ask one yes/no question out loud,
-              or make a guess.
-            </p>
-          </template>
         </section>
 
         <div ref="afterPhase" class="slot" />
 
-        <GameBoard v-if="!beforeDeal(state)" :state="state" :me-id="me.id" />
+        <GameBoard
+          v-if="!beforeDeal(state) && !covered"
+          :state="state"
+          :me-id="me.id"
+          :mine-apart="inRound"
+        />
 
         <div ref="afterBoard" class="slot" />
+        <div ref="afterControls" class="slot" />
       </div>
 
       <aside class="side stack">
-        <Teleport defer :to="controlsTarget" :disabled="!controlsTarget">
+        <Teleport v-if="inRound" defer :to="placement.myCard" :disabled="!placement.myCard">
+          <MyCard :state="state" :me-id="me.id" :notes="notes" :docked="narrow" />
+        </Teleport>
+        <Teleport defer :to="placement.controls" :disabled="!placement.controls">
           <GameControls
             :state="state"
             :me-id="me.id"
@@ -263,26 +363,33 @@ const PHASE_TITLES = {
             @new-round="room.newRound"
           />
         </Teleport>
-        <section v-if="state.phase !== 'lobby' || state.round > 1" class="panel stack">
-          <h3>Points</h3>
-          <ScoreBoard :state="state" :me-id="me.id" />
-        </section>
-        <section class="panel stack">
-          <h3>Players ({{ state.players.length }})</h3>
-          <PlayerList :state="state" :me-id="me.id" @kick="room.kick" />
-        </section>
-        <template v-if="confirmingLeave">
-          <p class="banner warn small">
-            Nobody else is around to keep the room running. Leaving ends the game for everyone.
-          </p>
-          <div class="row">
-            <button class="primary" @click="leaveRoom">Close the room</button>
-            <button @click="confirmingLeave = false">Stay</button>
+        <Teleport defer :to="placement.ledgers" :disabled="!placement.ledgers">
+          <div class="ledgers">
+            <section v-if="state.phase !== 'lobby' || state.round > 1" class="panel stack">
+              <h3>Points</h3>
+              <ScoreBoard :state="state" :me-id="me.id" />
+            </section>
+            <section class="panel stack">
+              <h3>Players ({{ state.players.length }})</h3>
+              <PlayerList :state="state" :me-id="me.id" @kick="room.kick" />
+            </section>
+            <div class="stack">
+              <template v-if="confirmingLeave && leaveWarning">
+                <p class="banner warn small">{{ leaveWarning.text }}</p>
+                <div class="row">
+                  <button class="primary" @click="leaveRoom">{{ leaveWarning.action }}</button>
+                  <button @click="confirmingLeave = false">Stay</button>
+                </div>
+              </template>
+              <button v-else class="leave" @click="leaveRoom">Leave room</button>
+            </div>
           </div>
-        </template>
-        <button v-else class="leave" @click="leaveRoom">Leave room</button>
+        </Teleport>
       </aside>
     </div>
+
+    <!-- On a phone, your card and notes dock here, at the bottom of the screen. -->
+    <div ref="dock" class="slot" />
   </div>
 </template>
 
@@ -328,5 +435,32 @@ const PHASE_TITLES = {
 .layout.narrow {
   grid-template-columns: minmax(0, 1fr);
   gap: 24px;
+}
+.ledgers {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+/* Whose turn it is: stuck to the top of the screen, above the notes dock if they meet. */
+.turn-bar {
+  position: sticky;
+  top: env(safe-area-inset-top, 0px);
+  z-index: 3;
+}
+/* Playing on a wide screen: your card and notes stay put beside the cards. */
+.layout.beside-cards {
+  grid-template-columns: minmax(0, 1fr) 320px;
+}
+.layout.beside-cards .side {
+  position: sticky;
+  top: 16px;
+  max-height: calc(100dvh - 32px);
+  overflow-y: auto;
+}
+/* Under the cards, the points and players sit side by side when there is room. */
+.main .ledgers {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  align-items: start;
 }
 </style>

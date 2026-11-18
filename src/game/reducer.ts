@@ -1,6 +1,6 @@
 import { assignEntries, MIN_PLAYERS, pickDistinct } from './assign'
 import { packById } from './packs'
-import type { ClientMessage, GameState, Player } from './protocol'
+import type { ClientMessage, Entry, GameState, Player } from './protocol'
 import { clip, LIMITS } from './protocol'
 
 export { MIN_PLAYERS }
@@ -62,11 +62,40 @@ export function canStartPlaying(s: GameState) {
   return s.phase === 'writing' && players.every((p) => p.entry)
 }
 
-/** The entry `playerId` has to guess, and who wrote it. */
-export function identityOf(s: GameState, playerId: string) {
-  const author = playerById(s, s.assignments[playerId])
-  return author?.entry ? { entry: author.entry, author } : undefined
+/**
+ * The entry `playerId` has to guess, and who wrote it. A card whose author was removed
+ * mid-round stays in play (`departed`).
+ */
+export function identityOf(
+  s: GameState,
+  playerId: string,
+): { entry: Entry; author: Pick<Player, 'id' | 'name'> } | undefined {
+  const id = s.assignments[playerId]
+  if (id === undefined) return undefined
+  const author = playerById(s, id)
+  if (author?.entry) return { entry: author.entry, author }
+  const gone = s.departed?.[id]
+  return gone ? { entry: gone.entry, author: { id, name: gone.name } } : undefined
 }
+
+/** The card `playerId` has to guess, as a card shows it: no author for a pack's cards. */
+export function cardOf(s: GameState, playerId: string) {
+  const identity = identityOf(s, playerId)
+  return { entry: identity?.entry, authorName: s.pack ? undefined : identity?.author.name }
+}
+
+/**
+ * Whether removing `p` now leaves the card they wrote in play (`departed`): it's out on
+ * the table, for whoever has to guess it.
+ */
+export const keepsCard = (s: GameState, p: Player) =>
+  !beforeDeal(s) && !p.spectator && p.entry !== undefined
+
+/**
+ * The room's host: the player whose tab relays it (the creator, until that tab leaves or
+ * goes quiet). Only the host can move anyone's turn on or remove anyone.
+ */
+export const isHost = (s: GameState, id: string | undefined) => id !== undefined && s.hostId === id
 
 /** `now` is the relay's clock; clients pass the snapshot's `sentAt`. */
 export const isAway = (p: Player, now: number) => now - p.lastSeen > AWAY_AFTER_MS
@@ -76,7 +105,7 @@ export const isAway = (p: Player, now: number) => now - p.lastSeen > AWAY_AFTER_
  * in seat order, except the relay itself. Spectators never relay.
  */
 export const nextRelays = (s: GameState, now: number = s.sentAt) =>
-  activePlayers(s).filter((p) => p.id !== s.hostId && !isAway(p, now))
+  activePlayers(s).filter((p) => !isHost(s, p.id) && !isAway(p, now))
 
 /**
  * This tab starts relaying the room, because the relay went quiet. Not a message: it
@@ -185,15 +214,24 @@ export const winnerNames = (s: GameState) =>
     .map((p) => p.name)
     .join(' & ')
 
-/** The next unsolved player after `after`, in seating order. */
-function nextTurn(s: GameState, after: string | undefined): string | undefined {
+/**
+ * The next unsolved player after `after`, in seating order. Players who are away are passed
+ * over, unless everyone else still guessing is away: then it's simply the next seat (whose
+ * turn anyone can skip), so the turn never bounces straight back to `after`.
+ */
+function nextTurn(
+  s: GameState,
+  after: string | undefined,
+  now: number,
+  leaving?: string,
+): string | undefined {
   const order = activePlayers(s)
   const start = order.findIndex((p) => p.id === after)
-  for (let i = 1; i <= order.length; i++) {
-    const p = order[(start + i + order.length) % order.length]!
-    if (!p.solved) return p.id
-  }
-  return undefined
+  const ahead = Array.from(
+    { length: order.length },
+    (_, i) => order[(start + i + 1) % order.length]!,
+  ).filter((p) => !p.solved && p.id !== leaving)
+  return (ahead.find((p) => p.id !== after && !isAway(p, now)) ?? ahead[0])?.id
 }
 
 /** Drops the per-turn fields. */
@@ -206,14 +244,19 @@ const finish = (s: GameState): GameState => ({ ...withoutTurn(s), phase: 'finish
 
 /**
  * Ends the current turn: the only place a turn ends. `counted` is false when an away
- * player's turn is skipped, since they asked nothing.
+ * player's turn is skipped, since they asked nothing. `leaving` is a player about to be
+ * removed, who must not get the next turn.
  */
-function finishTurn(s: GameState, counted = true): GameState {
+function finishTurn(
+  s: GameState,
+  now: number,
+  { counted = true, leaving }: { counted?: boolean; leaving?: string } = {},
+): GameState {
   const done =
     counted && s.turn
       ? { ...s, turnsTaken: { ...s.turnsTaken, [s.turn]: turnsOf(s, s.turn) + 1 } }
       : s
-  const turn = nextTurn(done, s.turn)
+  const turn = nextTurn(done, s.turn, now, leaving)
   return turn ? { ...withoutTurn(done), turn } : finish(done)
 }
 
@@ -225,6 +268,31 @@ function toggle(list: string[], id: string, on: boolean) {
 
 function updatePlayer(s: GameState, id: string, f: (p: Player) => Player): GameState {
   return { ...s, players: s.players.map((p) => (p.id === id ? f(p) : p)) }
+}
+
+/**
+ * Takes a player out of the room, for good (`kicked`) or because they left. While cards are
+ * out, the card they wrote stays in play for whoever has to guess it, their turn passes on,
+ * and what they leave behind can decide an open vote.
+ */
+function removePlayer(s: GameState, id: string, now: number, kicked: boolean): GameState {
+  const gone = playerById(s, id)
+  if (!gone) return s
+  let next =
+    s.phase === 'playing' && s.turn === id ? finishTurn(s, now, { counted: false, leaving: id }) : s
+  const { [id]: _assignment, ...assignments } = next.assignments
+  next = {
+    ...next,
+    players: next.players.filter((p) => p.id !== id),
+    assignments,
+    endVotes: next.endVotes.filter((x) => x !== id),
+    finishVotes: next.finishVotes.filter((x) => x !== id),
+    ...(kicked ? { kicked: [...next.kicked, id] } : {}),
+    ...(keepsCard(s, gone)
+      ? { departed: { ...next.departed, [id]: { name: gone.name, entry: gone.entry! } } }
+      : {}),
+  }
+  return settle(next, now)
 }
 
 export interface ReduceDeps {
@@ -250,9 +318,14 @@ export function reduce(s: GameState, a: ClientMessage, deps: ReduceDeps): GameSt
   return next === s ? s : { ...next, version: s.version + 1 }
 }
 
-/** The first correct guess of a round earns N-1 points, the next N-2, and so on. */
+/**
+ * The first correct guess of a round earns N-1 points, the next N-2, and so on, where N is
+ * everyone dealt a card this round: players who left since (`departed`) still count, so
+ * the order holds.
+ */
 function award(s: GameState, playerId: string): GameState {
-  const points = activePlayers(s).length - 1 - Object.keys(s.roundScores).length
+  const dealt = activePlayers(s).length + Object.keys(s.departed ?? {}).length
+  const points = dealt - 1 - Object.keys(s.roundScores).length
   return {
     ...updatePlayer(s, playerId, (p) => ({ ...p, solved: true })),
     scores: { ...s.scores, [playerId]: (s.scores[playerId] ?? 0) + points },
@@ -266,8 +339,8 @@ function settle(s: GameState, now: number): GameState {
     return s.finishVotes.length > 0 && finishTally(s, now).reached ? { ...s, phase: 'over' } : s
   if (s.phase !== 'playing') return s
   const t = tally(s, now)
-  if (t?.correct) return finishTurn(award(s, s.guess!.playerId))
-  if (t?.wrong) return finishTurn(s)
+  if (t?.correct) return finishTurn(award(s, s.guess!.playerId), now)
+  if (t?.wrong) return finishTurn(s, now)
   return s.endVotes.length > 0 && endTally(s, now).reached ? finish(s) : s
 }
 
@@ -310,15 +383,13 @@ function apply(s: GameState, a: ClientMessage, { now, rng = Math.random }: Reduc
       let next = s
       // The relay's tab holds the room: it hands it to the next player who is around, or,
       // with nobody left to take over, the room is gone.
-      if (a.from === s.hostId) {
+      if (isHost(s, a.from)) {
         const successor = nextRelays(s, now)[0]
         if (!successor) return { ...s, closed: true }
         next = { ...s, hostId: successor.id }
       }
-      // Leaving while cards are out would orphan an assignment; keep them and let them show
-      // as away. Before the deal and between rounds there is nothing to orphan.
-      if (s.phase === 'playing' && !known.spectator) return next
-      return { ...next, players: next.players.filter((p) => p.id !== a.from) }
+      // Mid-round the card they wrote stays in play (see removePlayer).
+      return removePlayer(next, a.from, now, false)
     }
 
     case 'startWriting':
@@ -382,11 +453,13 @@ function apply(s: GameState, a: ClientMessage, { now, rng = Math.random }: Reduc
     case 'pass': {
       if (s.phase !== 'playing' || !player || !s.turn) return s
       const current = playerById(s, s.turn)
-      const ownTurn = a.from === s.turn && !s.guess
-      // Anyone may skip the turn of a player who has gone away.
-      const skipAway = a.from !== s.turn && current !== undefined && isAway(current, now)
-      if (ownTurn) return finishTurn(s)
-      return skipAway ? finishTurn(s, false) : s
+      if (a.from === s.turn) return s.guess ? s : finishTurn(s, now)
+      if (!current) return s
+      const away = isAway(current, now)
+      // The host may move anyone's turn on, even mid-guess (someone forgot a button); it
+      // counts if they were around. Anyone may skip the turn of a player who has gone away.
+      if (isHost(s, a.from)) return finishTurn(s, now, { counted: !away })
+      return away ? finishTurn(s, now, { counted: false }) : s
     }
 
     case 'endVote': {
@@ -403,22 +476,21 @@ function apply(s: GameState, a: ClientMessage, { now, rng = Math.random }: Reduc
 
     case 'kick': {
       const target = playerById(s, a.playerId)
-      if (!known || !target || target.id === s.hostId || target.id === a.from) return s
-      // No one is in charge: you can only clear out players who left, or spectators.
-      const allowed = target.spectator || (beforeDeal(s) && isAway(target, now))
-      if (!allowed) return s
-      return {
-        ...s,
-        players: s.players.filter((p) => p.id !== a.playerId),
-        kicked: [...s.kicked, a.playerId],
-      }
+      if (!known || !target || isHost(s, target.id) || target.id === a.from) return s
+      // The host may remove anyone, after asking. Everyone else can only clear out spectators,
+      // and players who went away before the cards were dealt: once they are out, an away
+      // player's turn is passed over anyway, and a phone that slept a minute must not cost
+      // anyone the game. The relay (the host) holds the room, so nobody removes it.
+      const allowed =
+        isHost(s, a.from) || target.spectator || (beforeDeal(s) && isAway(target, now))
+      return allowed ? removePlayer(s, a.playerId, now, true) : s
     }
 
     case 'newRound': {
       if (s.phase !== 'finished' || !known) return s
       const pack = packById(a.pack)
       if (a.pack !== undefined && !pack) return s
-      const { pack: _pack, ...rest } = withoutTurn(s)
+      const { pack: _pack, departed: _departed, ...rest } = withoutTurn(s)
       return {
         ...rest,
         // A pack round gathers in the lobby (newcomers join as players), then deals.

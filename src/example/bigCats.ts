@@ -99,14 +99,14 @@ function play(): ExampleStep[] {
   g.step(
     'bob',
     'Friends join',
-    'Bob, Chen, Dana and Eve open the link and type their names. Nobody is in charge: every player has the same buttons.',
+    'Bob, Chen, Dana and Eve open the link and type their names. Everyone has the same buttons. Alice made the room, so Alice is also the host: if someone forgets to press a button or drops out, Alice can skip their turn or remove them.',
   )
 
   g.do({ type: 'startWriting', from: 'chen' })
   g.step(
     'dana',
-    'Everyone writes one',
-    'Chen presses "start writing". Each player now secretly writes ONE big cat, and pastes a Wikipedia link so the card gets a picture.',
+    'Everyone writes a card for someone else',
+    'Chen presses "start writing". Each player now secretly writes ONE big cat, and pastes a Wikipedia link so the card gets a picture. The cards get shuffled, so whoever writes a cat never gets it: someone else has to guess it.',
   )
 
   g.do(
@@ -129,7 +129,7 @@ function play(): ExampleStep[] {
   g.step(
     'bob',
     'The cards are handed out',
-    `The cats are shuffled so nobody gets their own. Bob's phone shows everyone else's cat with its picture, but Bob's own card just says "Who am I?". The game picked ${g.name(first)} to start.`,
+    `The cats are shuffled so nobody gets their own. Bob's phone shows everyone else's cat with its picture, under "Their cards: keep them secret". Bob's own card, kept apart with Bob's notes, just says "???". The game picked ${g.name(first)} to start.`,
   )
 
   const stripes = g.cardOf(first) === 'Tiger' ? 'Yes!' : 'No.'

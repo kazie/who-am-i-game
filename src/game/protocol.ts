@@ -44,9 +44,10 @@ export interface GameState {
   code: string
   theme: string
   /**
-   * The player whose tab holds the state and relays it (the bridge has no memory). It
-   * starts as the room's creator and passes on when that tab leaves or goes quiet. Always
-   * one of the players, and it has no extra say in the game: everyone has the same buttons.
+   * The host: the player whose tab holds the state and relays it (the bridge has no memory).
+   * It starts as the room's creator and passes on when that tab leaves or goes quiet. Always
+   * one of the players. Besides everyone's buttons, the host can move anyone's turn on and
+   * remove anyone, for when someone forgets a button or drops out.
    */
   hostId: string
   phase: Phase
@@ -76,6 +77,11 @@ export interface GameState {
    * saved state from before it existed, simply has no counts.
    */
   turnsTaken?: Record<string, number>
+  /**
+   * authorId -> the card written by a player who was removed (or left) while the cards were
+   * out, so whoever has to guess it keeps it. Cleared by the next round.
+   */
+  departed?: Record<string, { name: string; entry: Entry }>
   /** Players who voted, between rounds, to finish the whole game. */
   finishVotes: string[]
   /** The relay left with nobody around to take over: the room is gone for good. */
@@ -99,12 +105,16 @@ export type ClientMessage =
   | { type: 'guess'; from: string }
   | { type: 'withdrawGuess'; from: string }
   | { type: 'vote'; from: string; correct: boolean }
-  /** End the current turn without guessing (or skip an away player's turn). */
+  /**
+   * End the current turn without guessing. Also skips an away player's turn, and lets the
+   * host move anyone's turn on.
+   */
   | { type: 'pass'; from: string }
   | { type: 'endVote'; from: string; end: boolean }
   | { type: 'finishVote'; from: string; finish: boolean }
   /** A presentation screen asking for a snapshot; it never becomes a player. */
   | { type: 'watch'; from: string }
+  /** The host removes anyone; everyone else only spectators, or players away before the deal. */
   | { type: 'kick'; from: string; playerId: string }
   /** With a pack id, the next round uses that pack and skips writing. */
   | { type: 'newRound'; from: string; theme: string; pack?: string }
@@ -204,6 +214,8 @@ const isPlayer = (v: unknown) =>
   typeof v.solved === 'boolean' &&
   (v.entry === undefined || isEntry(v.entry))
 
+const isDeparted = (v: unknown) => isObject(v) && typeof v.name === 'string' && isEntry(v.entry)
+
 const isGuess = (v: unknown) =>
   isObject(v) && isPlayerId(v.playerId) && isRecordOf(v.votes, (x) => typeof x === 'boolean')
 
@@ -235,6 +247,7 @@ export function isStateMessage(v: unknown): v is StateMessage {
     isRecordOf(s.roundScores, (x) => typeof x === 'number') &&
     (s.pack === undefined || isString(s.pack, LIMITS.pack)) &&
     (s.turnsTaken === undefined || isRecordOf(s.turnsTaken, (x) => typeof x === 'number')) &&
+    (s.departed === undefined || isRecordOf(s.departed, isDeparted)) &&
     isRecordOf(s.assignments, (x) => typeof x === 'string') &&
     (s.turn === undefined || typeof s.turn === 'string') &&
     (s.guess === undefined || isGuess(s.guess)) &&

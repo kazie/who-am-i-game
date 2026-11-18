@@ -4,7 +4,7 @@ import { effectScope, nextTick, ref } from 'vue'
 import NotesPanel from '../components/NotesPanel.vue'
 import { LIMITS } from './protocol'
 import { memoryStorage } from './storage'
-import { MAX_NOTES, notesKey, useNotes } from './useNotes'
+import { groupNotes, MAX_NOTES, notesKey, useNotes } from './useNotes'
 
 function setup(storage = memoryStorage(), round = ref<number | null>(1)) {
   const scope = effectScope()
@@ -30,6 +30,57 @@ describe('useNotes', () => {
     expect(notes.notes.value[0]).not.toHaveProperty('answer')
     notes.remove(spots!.id)
     expect(texts(notes)).toEqual(['Am I an animal?'])
+  })
+
+  it('adds a note with its answer, and edits its text', () => {
+    const { notes } = setup()
+    notes.add('Am I an animal?', 'yes')
+    expect(notes.notes.value[0]).toMatchObject({ text: 'Am I an animal?', answer: 'yes' })
+    const id = notes.notes.value[0]!.id
+    notes.edit(id, '  Am I a mammal? ')
+    expect(texts(notes)).toEqual(['Am I a mammal?'])
+    notes.edit(id, '   ')
+    expect(texts(notes)).toEqual(['Am I a mammal?'])
+  })
+
+  it('groups by answer, yes first, each group in my own order', () => {
+    const { notes } = setup()
+    notes.add('Unsure', 'maybe')
+    notes.add('Open')
+    notes.add('Animal', 'yes')
+    notes.add('Stripes', 'no')
+    notes.add('Africa', 'yes')
+    expect(
+      groupNotes(notes.notes.value).map((g) => [g.answer, g.notes.map((n) => n.text)]),
+    ).toEqual([
+      ['yes', ['Animal', 'Africa']],
+      ['no', ['Stripes']],
+      ['maybe', ['Unsure']],
+      [undefined, ['Open']],
+    ])
+  })
+
+  it('keeps a saved note with an answer it does not know, as unanswered', () => {
+    const storage = memoryStorage()
+    const saved = [{ id: 'x', text: 'Old note', answer: 'perhaps' }, 'junk', { id: 'y' }]
+    storage.setItem(notesKey('ABCDE', 1), JSON.stringify(saved))
+    expect(setup(storage).notes.notes.value).toEqual([{ id: 'x', text: 'Old note' }])
+    storage.setItem(notesKey('ABCDE', 1), JSON.stringify({ not: 'a list' }))
+    expect(setup(storage).notes.notes.value).toEqual([])
+  })
+
+  it('moves a note up and down within its group only', () => {
+    const { notes } = setup()
+    notes.add('Animal', 'yes')
+    notes.add('Stripes', 'no')
+    notes.add('Africa', 'yes')
+    const africa = notes.notes.value[2]!.id
+    notes.move(africa, -1) // jumps over Stripes, which is in another group
+    expect(texts(notes)).toEqual(['Africa', 'Stripes', 'Animal'])
+    notes.move(africa, -1) // already first among the yeses
+    expect(texts(notes)).toEqual(['Africa', 'Stripes', 'Animal'])
+    notes.move(africa, 1)
+    expect(texts(notes)).toEqual(['Animal', 'Stripes', 'Africa'])
   })
 
   it('keeps the notes over a reload', () => {
@@ -92,7 +143,8 @@ describe('NotesPanel', () => {
     await yes().trigger('click')
     expect(notes.notes.value[0]!.answer).toBeUndefined()
 
-    await panel.find('button[title="Remove"]').trigger('click')
+    await panel.find('.text').trigger('click')
+    await panel.find('button[aria-label="Remove Am I an animal?"]').trigger('click')
     expect(notes.notes.value).toEqual([])
   })
 })

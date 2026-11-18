@@ -155,16 +155,25 @@ function submit() {
 
 <template>
   <div v-if="submitted" class="panel stack">
-    <h2>Your entry is in</h2>
-    <IdentityCard class="locked" player-name="Your entry" :entry="submitted" :hidden="false" />
-    <p class="muted small">Waiting for everyone else to write theirs…</p>
+    <h2>Your card for someone else is in</h2>
+    <IdentityCard
+      class="locked"
+      player-name="For someone else"
+      :entry="submitted"
+      :hidden="false"
+    />
+    <p class="muted small">Keep it to yourself. Waiting for everyone else to write theirs…</p>
   </div>
 
   <form v-else class="panel stack" @submit.prevent="submit">
-    <h2>Write one: {{ theme }}</h2>
+    <h2>Write a card for someone else</h2>
+    <p class="theme">
+      Theme: <strong>{{ theme }}</strong>
+    </p>
     <p class="muted small">
-      Someone else will have to guess this, so pick something everyone has heard of. You only get
-      one entry, and it can't be changed after you send it.
+      The cards get shuffled and handed out: one of the others gets the card you write, and has to
+      guess who they are. You get a card someone else wrote, never your own. Pick something everyone
+      has heard of, and keep it to yourself. One card each; it can't be changed after you send it.
     </p>
     <label>
       Who or what?
@@ -213,5 +222,8 @@ function submit() {
 <style scoped>
 .locked {
   max-width: 280px;
+}
+.theme {
+  margin: 0;
 }
 </style>

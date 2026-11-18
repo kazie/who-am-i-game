@@ -9,6 +9,7 @@ import { getSeatGuard } from '../game/seats'
 import { browserStorage } from '../game/storage'
 import { useAlerts, vibrate, webAudioBeeper } from '../game/useAlerts'
 import { notesKey, useNotes } from '../game/useNotes'
+import { useRules } from '../game/useRules'
 import { useWakeLock } from '../game/useWakeLock'
 import { joinRoom, useRoom } from '../game/useRoom'
 
@@ -40,6 +41,9 @@ const notes =
     room.state.value && room.me.value ? notesKey(code, room.state.value.round) : null,
   )
 
+// Whether this browser has read why the cards are secret; asked once, for every room.
+const rules = room && useRules(browserStorage('localStorage'))
+
 // Keep the screen on: always for the relay (a sleeping relay stalls the room until
 // another tab takes over), and for everyone while the cards are out.
 useWakeLock(() => {
@@ -60,6 +64,7 @@ function switchRoom({ code, name }: { code: string; name: string }) {
     :room="room"
     :alerts="alerts ?? undefined"
     :notes="notes ?? undefined"
+    :rules="rules ?? undefined"
     @leave="router.push('/')"
   />
   <BadRoomCode v-else :code="code" @join="switchRoom" />

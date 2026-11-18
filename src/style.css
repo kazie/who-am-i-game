@@ -223,6 +223,18 @@ button.chip {
   font-size: 0.875rem;
 }
 
+/* A button that reads as text or a strip, e.g. a note to open, or the notes dock. */
+button.bare {
+  border: 0;
+  border-radius: 0;
+  background: none;
+  text-align: left;
+}
+
+button.bare:hover:not(:disabled) {
+  background: none;
+}
+
 button[aria-pressed='true'] {
   background: var(--text);
   border-color: var(--text);
